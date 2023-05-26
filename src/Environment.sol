@@ -141,9 +141,9 @@ contract Environment is CommonBase, StdCheats {
     function addUsers(uint count, uint depositSize) external {
         for (uint i = 0; i < count; i++) {
             address user = makeAddr(string.concat("user", string(abi.encode(i))));
+            vm.startPrank(user);
             underlyingToken.mint(user, depositSize);
             underlyingToken.approve(address(vault), depositSize);
-            vm.prank(user);
             vault.deposit(depositSize, user);
             vm.stopPrank();
             users.push(user);
@@ -160,6 +160,10 @@ contract Environment is CommonBase, StdCheats {
 
     function gasConfig() external view returns (GasConfig memory) {
         return _gasConfig;
+    }
+
+    function mintYield() external {
+        yieldVault.mintRate();
     }
 
     function setApr(uint fixedPoint18) external {

@@ -1,5 +1,7 @@
 pragma solidity 0.8.17;
 
+import "forge-std/console2.sol";
+
 import { Environment } from "src/Environment.sol";
 
 contract LiquidatorAgent {
@@ -20,9 +22,13 @@ contract LiquidatorAgent {
         uint liquidationCost = requiredPrizeTokens;
         uint liquidationRevenue = (availableVaultShares * exchangeRatePrizeTokenToUnderlyingFixedPoint18) / 1e18;
 
+        // console2.log("liquidationCost\t", liquidationCost);
+        // console2.log("liquidationRevenue\t", liquidationRevenue);
+
         if (liquidationRevenue > liquidationCost) {
             uint profit = liquidationRevenue - liquidationCost;
             if (profit > gasCostInPrizeTokens) {
+                console2.log("LIQUIDATING ", block.timestamp);
                 env.prizeToken().mint(address(this), requiredPrizeTokens);
                 env.router().swapExactAmountOut(
                     env.pair(),

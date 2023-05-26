@@ -23,7 +23,14 @@ contract SimulationTest is Test {
 
     function testSimulation() public {
 
-        uint32 drawPeriodSeconds = 1 hours;
+        uint32 drawPeriodSeconds = 30 minutes;
+
+        uint duration = 10 hours;
+        uint timeStep = 2 minutes;
+        uint startTime = block.timestamp;
+
+        uint totalValueLocked = 100_000e18;
+        uint numUsers = 2;
 
         PrizePoolConfig memory prizePoolConfig = PrizePoolConfig({
             grandPrizePeriodDraws: 10,
@@ -48,7 +55,7 @@ contract SimulationTest is Test {
         ClaimerConfig memory claimerConfig = ClaimerConfig({
             minimumFee: 0.0001e18,
             maximumFee: 1000e18,
-            timeToReachMaxFee: drawPeriodSeconds,
+            timeToReachMaxFee: drawPeriodSeconds/2,
             maxFeePortionOfPrize: UD2x18.wrap(0.5e18)
         });
 
@@ -66,13 +73,6 @@ contract SimulationTest is Test {
             gasConfig
         );
 
-        uint duration = 10 days;
-        uint timeStep = 5 minutes;
-        uint startTime = block.timestamp;
-
-        uint totalValueLocked = 1_000_000e18;
-        uint numUsers = 100;
-
         uint exchangeRatePrizeTokenToUnderlyingFixedPoint18 = 1e18;
 
         env.addUsers(numUsers, totalValueLocked / numUsers);
@@ -86,6 +86,7 @@ contract SimulationTest is Test {
 
         for (uint i = startTime; i < duration; i += timeStep) {
             vm.warp(i);
+            env.mintYield();
             claimerAgent.check();
             liquidatorAgent.check(exchangeRatePrizeTokenToUnderlyingFixedPoint18);
             drawAgent.check();
