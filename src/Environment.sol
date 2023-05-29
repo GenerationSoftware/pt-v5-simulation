@@ -112,7 +112,6 @@ contract Environment is CommonBase, StdCheats {
             _claimerConfig.maxFeePortionOfPrize
         );
 
-
         vault = Vault(vaultFactory.deployVault(
             underlyingToken,
             "PoolTogether Prize USDC",
