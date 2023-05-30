@@ -11,3 +11,6 @@
 [submodule "lib/v5-vrgda-claimer"]
 	path = lib/v5-vrgda-claimer
 	url = https://github.com/pooltogether/v5-vrgda-claimer
+[submodule "lib/v5-prize-pool"]
+	path = lib/v5-prize-pool
+	url = https://github.com/pooltogether/v5-prize-pool
