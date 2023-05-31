@@ -10,4 +10,4 @@ v5-vault/=lib/v5-vault/src/
 v5-vault-test/=lib/v5-vault/test/
 v5-vrgda-claimer/=lib/v5-vrgda-claimer/src/
 openzeppelin/=lib/v5-liquidator/lib/openzeppelin-contracts/contracts/
-prb-math/=/Users/brendan/workspace/v5-simulation/lib/v5-vrgda-claimer/lib/prb-math/src/
+prb-math/=lib/v5-vrgda-claimer/lib/prb-math/src/
