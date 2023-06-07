@@ -4,7 +4,7 @@ out = 'out'
 test = 'test'
 libs = ['lib']
 solc = "0.8.17"
-fs_permissions = [{ access = "read", path = "./broadcast"}]
+fs_permissions = [{ access = "read", path = "./broadcast"},{ access = "read-write", path = "./data" }]
 gas_reports = ["*"]
 
 [rpc_endpoints]

@@ -20,17 +20,14 @@ contract DrawAgent {
         uint cost = gasConfig.gasUsagePerCompleteDraw * gasConfig.gasPriceInPrizeTokens;
         uint minimum = cost + (cost / 10); // require 10% profit
         if (env.prizePool().hasNextDrawFinished()) {
-            if (env.prizePool().getNextDrawId() == 1) {
-                console2.log("DrawAgent Draw ", uint(1));
-                env.prizePool().completeAndStartNextDraw(uint256(keccak256(abi.encodePacked(block.timestamp))));
-                drawCount++;
-            } else if (env.prizePool().reserve() >= minimum) {
-                console2.log("DrawAgent Draw ", env.prizePool().getNextDrawId());
+            uint nextReserve = env.prizePool().reserve() + env.prizePool().reserveForNextDraw();
+            if (nextReserve >= minimum) {
+                console2.log("DrawAgent Draw ", env.prizePool().getNextDrawId(), "Block Timestamp - last draw start", block.timestamp - env.prizePool().lastCompletedDrawStartedAt());
                 env.prizePool().completeAndStartNextDraw(uint256(keccak256(abi.encodePacked(block.timestamp))));
                 env.prizePool().withdrawReserve(address(this), uint104(minimum));
                 drawCount++;
             } else {
-                // console2.log("Insufficient reserve to draw");
+                console2.log("Insufficient reserve to draw", env.prizePool().getNextDrawId(), "Block Timestamp - last draw start", block.timestamp - env.prizePool().lastCompletedDrawStartedAt());
             }
         }
     }
