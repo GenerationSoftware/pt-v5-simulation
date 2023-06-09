@@ -6,6 +6,7 @@ import { console2 } from "forge-std/console2.sol";
 import { UFixed32x4 } from "v5-liquidator/libraries/FixedMathLib.sol";
 import { UD2x18 } from "prb-math/UD2x18.sol";
 import { SD1x18 } from "prb-math/SD1x18.sol";
+import { TwabLib } from "v5-twab-controller/libraries/TwabLib.sol"; 
 
 import {
     Environment,
@@ -21,13 +22,15 @@ import { LiquidatorAgent } from "src/LiquidatorAgent.sol";
 
 contract SimulationTest is Test {
 
-    uint32 drawPeriodSeconds = 14 days;
+    string runStatsOut = string.concat(vm.projectRoot(), "/data/simulation.csv");
+
+    uint32 drawPeriodSeconds = 1 days;
 
     uint duration = 300 days;
     uint timeStep = 1 hours;
-    uint startTime = block.timestamp;
+    uint startTime;
 
-    uint totalValueLocked = 500_000e18;
+    uint totalValueLocked = 10_000_000e18;
     uint apr = 0.04e18;
     uint numUsers = 2;
 
@@ -44,21 +47,26 @@ contract SimulationTest is Test {
     DrawAgent public drawAgent;
 
     function setUp() public {
+        startTime = block.timestamp + 10 days;
+
+        console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
+        console2.log("Draw Period (sec): ", drawPeriodSeconds);
+
         prizePoolConfig = PrizePoolConfig({
             grandPrizePeriodDraws: 10,
             drawPeriodSeconds: drawPeriodSeconds,
-            nextDrawStartsAt: uint64(block.timestamp),
+            nextDrawStartsAt: uint64(startTime),
             numberOfTiers: 2,
             tierShares: 100,
             canaryShares: 50,
             reserveShares: 200,
             claimExpansionThreshold: UD2x18.wrap(0.8e18),
-            smoothing: SD1x18.wrap(0.9e18)
+            smoothing: SD1x18.wrap(0.95e18)
         });
 
         liquidatorConfig = LiquidatorConfig({
             swapMultiplier: UFixed32x4.wrap(0.3e4),
-            liquidityFraction: UFixed32x4.wrap(0.1e4),
+            liquidityFraction: UFixed32x4.wrap(0.5e4),
             virtualReserveIn: 1000e18,
             virtualReserveOut: 1000e18,
             mink: 1000e18*1000e18
@@ -99,8 +107,33 @@ contract SimulationTest is Test {
         env.setPrizePoolManager(address(drawAgent));
         env.setApr(apr);
 
-        for (uint i = startTime; i < duration; i += timeStep) {
+        // vm.writeFile(runStatsOut,"");
+        // vm.writeLine(runStatsOut, "Timestamp,Completed Draws,Expected Draws,Available Yield,Available Yield (e18),Available Vault Shares,Available Vault Shares (e18),Required Prize Tokens,Required Prize Tokens (e18),Prize Pool Reserve,Prize Pool Reserve (e18)");
+
+        for (uint i = startTime; i < startTime + duration; i += timeStep) {
             vm.warp(i);
+            uint availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));
+            uint availableVaultShares = env.pair().maxAmountOut();
+            uint requiredPrizeTokens = env.pair().computeExactAmountIn(availableVaultShares);
+            uint prizePoolReserve = env.prizePool().reserve();
+            // uint unrealizedReserve = env.prizePool().reserveForNextDraw();
+            // string memory valuesPart1 = string.concat(
+            //     vm.toString(i), ",",
+            //     vm.toString(drawAgent.drawCount()), ",",
+            //     vm.toString((i - startTime) / drawPeriodSeconds), ",",
+            //     vm.toString(availableYield), ",",
+            //     vm.toString(availableYield / 1e18), ",",
+            //     vm.toString(availableVaultShares), ",",
+            //     vm.toString(availableVaultShares / 1e18), ",",
+            //     vm.toString(requiredPrizeTokens), ",",
+            //     vm.toString(requiredPrizeTokens / 1e18), ","
+            // );
+            // // split to avoid stack too deep
+            // string memory valuesPart2 = string.concat(
+            //     vm.toString(prizePoolReserve), ",",
+            //     vm.toString(prizePoolReserve / 1e18)
+            // );
+            // vm.writeLine(runStatsOut,string.concat(valuesPart1,valuesPart2));
             env.mintYield();
             // claimerAgent.check();
             liquidatorAgent.check(exchangeRatePrizeTokenToUnderlyingFixedPoint18);
@@ -111,7 +144,6 @@ contract SimulationTest is Test {
         uint missedDraws = (totalDraws) - drawAgent.drawCount();
         console2.log("Expected draws", totalDraws);
         console2.log("Actual draws", drawAgent.drawCount());
-
         console2.log("Missed Draws", missedDraws);
 
     }

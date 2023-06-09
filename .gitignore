@@ -13,3 +13,6 @@ out/
 node_modules
 
 .history
+
+# Ignore test data outputs
+data/

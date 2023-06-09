@@ -85,7 +85,7 @@ contract Environment is CommonBase, StdCheats {
             "yUSDC",
             address(this)
         );
-        twab = new TwabController(_prizePoolConfig.drawPeriodSeconds/4);
+        twab = new TwabController();
         prizePool = new PrizePool(
             prizeToken,
             twab,
