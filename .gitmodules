@@ -14,3 +14,6 @@
 [submodule "lib/v5-prize-pool"]
 	path = lib/v5-prize-pool
 	url = https://github.com/pooltogether/v5-prize-pool
+[submodule "lib/v5-draw-beacon"]
+	path = lib/v5-draw-beacon
+	url = https://github.com/pooltogether/v5-draw-beacon
