@@ -24,11 +24,11 @@ contract SimulationTest is Test {
 
     string runStatsOut = string.concat(vm.projectRoot(), "/data/simulation.csv");
 
-    uint32 drawPeriodSeconds = 1 days;
+    uint32 drawPeriodSeconds = 7 days;
 
-    // We add 4 hours to give room to the DrawAuction linear interpolation to complete for last draw
-    uint duration = 300 days + 4 hours;
-    uint timeStep = 1 hours;
+
+    uint duration = 16 days;
+    uint timeStep = 30 minutes;
     uint startTime;
 
     uint totalValueLocked = 10_000_000e18;
@@ -48,7 +48,8 @@ contract SimulationTest is Test {
     DrawAgent public drawAgent;
 
     function setUp() public {
-        startTime = block.timestamp + 10 days;
+        startTime = block.timestamp + 400 days;
+        vm.warp(startTime);
 
         console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
         console2.log("Draw Period (sec): ", drawPeriodSeconds);
@@ -59,24 +60,24 @@ contract SimulationTest is Test {
             nextDrawStartsAt: uint64(startTime),
             numberOfTiers: 2,
             tierShares: 100,
-            canaryShares: 50,
-            reserveShares: 200,
+            canaryShares: 100,
+            reserveShares: 100,
             claimExpansionThreshold: UD2x18.wrap(0.8e18),
-            smoothing: SD1x18.wrap(0.95e18)
+            smoothing: SD1x18.wrap(0.3e18)
         });
 
         liquidatorConfig = LiquidatorConfig({
             swapMultiplier: UFixed32x4.wrap(0.3e4),
-            liquidityFraction: UFixed32x4.wrap(0.5e4),
+            liquidityFraction: UFixed32x4.wrap(0.1e4),
             virtualReserveIn: 1000e18,
             virtualReserveOut: 1000e18,
             mink: 1000e18*1000e18
         });
 
         claimerConfig = ClaimerConfig({
-            minimumFee: 0.0001e18,
+            minimumFee: 0.001e18,
             maximumFee: 1000e18,
-            timeToReachMaxFee: drawPeriodSeconds/2,
+            timeToReachMaxFee: drawPeriodSeconds/4,
             maxFeePortionOfPrize: UD2x18.wrap(0.5e18)
         });
 
@@ -137,7 +138,7 @@ contract SimulationTest is Test {
             // );
             // vm.writeLine(runStatsOut,string.concat(valuesPart1,valuesPart2));
             env.mintYield();
-            // claimerAgent.check();
+            claimerAgent.check();
             liquidatorAgent.check(exchangeRatePrizeTokenToUnderlyingFixedPoint18);
             drawAgent.check();
         }
