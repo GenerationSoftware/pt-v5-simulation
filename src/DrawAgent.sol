@@ -15,19 +15,31 @@ contract DrawAgent {
     }
 
     function check() public {
-
         GasConfig memory gasConfig = env.gasConfig();
-        uint cost = gasConfig.gasUsagePerCompleteDraw * gasConfig.gasPriceInPrizeTokens;
+        uint cost = (gasConfig.gasUsagePerCompleteDraw + gasConfig.gasUsagePerStartDraw) * gasConfig.gasPriceInPrizeTokens;
         uint minimum = cost + (cost / 10); // require 10% profit
+
+        console2.log("PrizePool hasNextDrawFinished: %s", env.prizePool().hasNextDrawFinished());
+
         if (env.prizePool().hasNextDrawFinished()) {
-            uint nextReserve = env.prizePool().reserve() + env.prizePool().reserveForNextDraw();
-            if (nextReserve >= minimum) {
-                console2.log("DrawAgent Draw ", env.prizePool().getNextDrawId(), "Block Timestamp - last draw start", block.timestamp - env.prizePool().lastCompletedDrawStartedAt());
-                env.prizePool().completeAndStartNextDraw(uint256(keccak256(abi.encodePacked(block.timestamp))));
-                env.prizePool().withdrawReserve(address(this), uint104(minimum));
+            uint256 lastCompletedDrawStartedAt = env.prizePool().lastCompletedDrawStartedAt();
+            uint256 nextDrawId = env.prizePool().getNextDrawId();
+            uint256 reward = env.drawAuction().reward();
+            uint256 reserve = env.prizePool().reserve() + env.prizePool().reserveForNextDraw();
+
+            console2.log("DrawID: %s", nextDrawId);
+            console2.log("PrizePool reserve: %s", reserve);
+            console2.log("Minimum reward to cover cost: %s", minimum);
+            console2.log("DrawAuction reward: %s", reward);
+            console2.log("Block Timestamp - last draw start: %s", block.timestamp - lastCompletedDrawStartedAt);
+
+            if (reward >= minimum) {
+                console2.log("DrawAgent Draw: %s", nextDrawId);
+                console2.log("Percentage of the reserve covering DrawAuction reward: %s", reserve > 0 ? reward * 100 / reserve : 0);
+                env.drawAuction().completeAndStartNextDraw(uint256(keccak256(abi.encodePacked(block.timestamp))));
                 drawCount++;
             } else {
-                console2.log("Insufficient reserve to draw", env.prizePool().getNextDrawId(), "Block Timestamp - last draw start", block.timestamp - env.prizePool().lastCompletedDrawStartedAt());
+                console2.log("Insufficient reward to complete Draw: %s", nextDrawId);
             }
         }
     }

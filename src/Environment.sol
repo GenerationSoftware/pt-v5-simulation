@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import { Vault } from "v5-vault/Vault.sol";
 import { VaultFactory } from "v5-vault/VaultFactory.sol";
 import { ERC20PermitMock } from "v5-vault-test/contracts/mock/ERC20PermitMock.sol";
+import { DrawAuction } from "v5-draw-beacon/DrawAuction.sol";
 import { TwabController } from "v5-twab-controller/TwabController.sol";
 import { ILiquidationSource } from "v5-liquidator-interfaces/ILiquidationSource.sol";
 import { LiquidationPair } from "v5-liquidator/LiquidationPair.sol";
@@ -50,7 +51,9 @@ struct GasConfig {
     uint256 gasPriceInPrizeTokens;
     uint256 gasUsagePerClaim;
     uint256 gasUsagePerLiquidation;
+    uint256 gasUsagePerStartDraw;
     uint256 gasUsagePerCompleteDraw;
+    uint256 gasUsagePerDispatchDraw;
 }
 
 contract Environment is CommonBase, StdCheats {
@@ -64,6 +67,7 @@ contract Environment is CommonBase, StdCheats {
     LiquidationPair public pair;
     PrizePool public prizePool;
     Claimer public claimer;
+    DrawAuction public drawAuction;
     LiquidationPairFactory public pairFactory;
     LiquidationRouter public router;
 
@@ -100,7 +104,7 @@ contract Environment is CommonBase, StdCheats {
             _prizePoolConfig.smoothing
         );
         vaultFactory = new VaultFactory();
-        
+
         pairFactory = new LiquidationPairFactory();
         router = new LiquidationRouter(pairFactory);
 
@@ -111,6 +115,13 @@ contract Environment is CommonBase, StdCheats {
             _claimerConfig.timeToReachMaxFee,
             _claimerConfig.maxFeePortionOfPrize
         );
+
+        drawAuction = new DrawAuction(
+            prizePool,
+            _prizePoolConfig.drawPeriodSeconds / 8
+        );
+
+        prizePool.setManager(address(drawAuction));
 
         vault = Vault(vaultFactory.deployVault(
             underlyingToken,
@@ -147,10 +158,6 @@ contract Environment is CommonBase, StdCheats {
             vm.stopPrank();
             users.push(user);
         }
-    }
-
-    function setPrizePoolManager(address _manager) external {
-        prizePool.setManager(_manager);
     }
 
     function userCount() external view returns (uint) {

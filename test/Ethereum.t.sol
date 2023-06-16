@@ -6,7 +6,7 @@ import { console2 } from "forge-std/console2.sol";
 import { UFixed32x4 } from "v5-liquidator/libraries/FixedMathLib.sol";
 import { UD2x18 } from "prb-math/UD2x18.sol";
 import { SD1x18 } from "prb-math/SD1x18.sol";
-import { TwabLib } from "v5-twab-controller/libraries/TwabLib.sol"; 
+import { TwabLib } from "v5-twab-controller/libraries/TwabLib.sol";
 
 import {
     Environment,
@@ -26,7 +26,8 @@ contract SimulationTest is Test {
 
     uint32 drawPeriodSeconds = 1 days;
 
-    uint duration = 300 days;
+    // We add 4 hours to give room to the DrawAuction linear interpolation to complete for last draw
+    uint duration = 300 days + 4 hours;
     uint timeStep = 1 hours;
     uint startTime;
 
@@ -86,7 +87,9 @@ contract SimulationTest is Test {
             gasPriceInPrizeTokens: 90000 gwei,
             gasUsagePerClaim: 150_000,
             gasUsagePerLiquidation: 500_000,
-            gasUsagePerCompleteDraw: 200_000
+            gasUsagePerStartDraw: 152_473,
+            gasUsagePerCompleteDraw:  66_810,
+            gasUsagePerDispatchDraw:  250_000
         });
 
         env = new Environment(
@@ -104,7 +107,6 @@ contract SimulationTest is Test {
     function testSimulation() public {
         env.addUsers(numUsers, totalValueLocked / numUsers);
 
-        env.setPrizePoolManager(address(drawAgent));
         env.setApr(apr);
 
         // vm.writeFile(runStatsOut,"");
