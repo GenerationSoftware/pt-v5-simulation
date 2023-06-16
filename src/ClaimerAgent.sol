@@ -58,9 +58,6 @@ contract ClaimerAgent {
 
         if (targetClaimCount > 0) {
             console2.log("GO FOR CLAIMS", targetClaimCount);
-        }
-
-        if (targetClaimCount > 0) {
             // console2.log("claimPrizes(computedDrawId, targetClaimCount)", computedDrawId, targetClaimCount);
             uint earned = claimPrizes(targetClaimCount);
             console2.log("CLAIMED ", targetClaimCount, " PRIZES. EARNED ", earned / 1e18);
@@ -141,7 +138,7 @@ contract ClaimerAgent {
                 winners[winnerIndex] = currentWinner;
             }
 
-            // if the current prize is for a different winner, then skip ahead
+            // if the current prize is for a different winner, then skip to next winner
             if (currentWinner != drawPrizes[computedDrawId][pi].winner) {
                 winnerIndex++;
                 prizeIndex = 0;
@@ -165,7 +162,7 @@ contract ClaimerAgent {
             return 0;
         }
 
-        while (nextPrizeIndex < nextPrizeIndex + claimCount) {
+        while (claimCount > 0) {
             (uint8 tier, uint256 tierPrizes) = countContiguousTierPrizes(nextPrizeIndex, claimCount);
 
             // console2.log("claimPrizes tier, tierPrizes", tier, tierPrizes);

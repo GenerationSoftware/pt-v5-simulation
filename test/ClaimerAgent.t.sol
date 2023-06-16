@@ -10,13 +10,13 @@ import { ClaimerAgent } from "src/ClaimerAgent.sol";
 
 contract ClaimerAgentTest is Test {
 
-    Environment env = Environment(address(0x1));
-    PrizePool prizePool = PrizePool(address(0x2));
-    Vault vault = Vault(address(0x5));
-    Claimer claimer = Claimer(address(0x6));
+    Environment env = Environment(address(0xffff1));
+    PrizePool prizePool = PrizePool(address(0xffff2));
+    Vault vault = Vault(address(0xffff5));
+    Claimer claimer = Claimer(address(0xffff6));
 
-    address user1 = address(0x3);
-    address user2 = address(0x4);
+    address user1 = address(0xffff3);
+    address user2 = address(0xffff4);
     
     ClaimerAgent agent;
 
