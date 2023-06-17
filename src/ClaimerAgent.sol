@@ -33,37 +33,58 @@ contract ClaimerAgent {
         return drawPrizes[drawId].length;
     }
 
-    function check() public {
+    function check() public returns (uint256) {
         // console2.log("ClaimerAgent checking", block.timestamp);
 
         if (env.prizePool().getLastCompletedDrawId() != computedDrawId) {
             computePrizes();
         }
 
-        // console2.log("check() 1");
+        uint totalFees;
 
         uint claimCostInPrizeTokens = env.gasConfig().gasUsagePerClaim * env.gasConfig().gasPriceInPrizeTokens;
-        uint targetClaimCount = 0;
-        uint claimFees = 0;
+
         uint256 remainingPrizes = drawPrizes[computedDrawId].length - nextPrizeIndex;
-        for (uint i = 1; i < remainingPrizes; i++) {
-            uint nextClaimFees = env.claimer().computeTotalFees(i);
-            if (nextClaimFees - claimFees > claimCostInPrizeTokens) {
-                targetClaimCount = i;
-                claimFees = nextClaimFees;
+        while (remainingPrizes > 0) {
+            // console2.log("\tClaim cost: ", claimCostInPrizeTokens/1e18);
+            (uint8 tier, uint256 tierPrizes) = countContiguousTierPrizes(nextPrizeIndex, remainingPrizes);
+
+            uint claimFees;
+            uint targetClaimCount;
+            // see if any are worth claiming
+            for (uint i = 1; i < tierPrizes+1; i++) {
+                uint nextClaimFees = env.claimer().computeTotalFees(tier, i);
+                // console2.log("\tclaim count/fee", i, nextClaimFees/1e18);
+                if (nextClaimFees - claimFees > claimCostInPrizeTokens) {
+                    targetClaimCount = i;
+                    claimFees = nextClaimFees;
+                } else {
+                    break;
+                }
+            }
+
+            if (targetClaimCount > 0) {
+                // count winners
+                uint256 winnersLength = countWinners(nextPrizeIndex, targetClaimCount);
+
+                // count prize indices per winner
+                uint32[] memory prizeIndexLength = countPrizeIndicesPerWinner(nextPrizeIndex, targetClaimCount, winnersLength);
+
+                // build result arrays
+                (address[] memory winners, uint32[][] memory prizeIndices) = populateArrays(nextPrizeIndex, targetClaimCount, winnersLength, prizeIndexLength);
+
+                console2.log("+++++++++++++++++++++ $$$$$$$$$$$$$$$$$$ Claiming prizes", tier, targetClaimCount);
+
+                totalFees += env.claimer().claimPrizes(env.vault(), tier, winners, prizeIndices, address(this));
+
+                nextPrizeIndex += targetClaimCount;
+                remainingPrizes = drawPrizes[computedDrawId].length - nextPrizeIndex;
             } else {
                 break;
             }
         }
 
-        if (targetClaimCount > 0) {
-            console2.log("GO FOR CLAIMS", targetClaimCount);
-            // console2.log("claimPrizes(computedDrawId, targetClaimCount)", computedDrawId, targetClaimCount);
-            uint earned = claimPrizes(targetClaimCount);
-            console2.log("CLAIMED ", targetClaimCount, " PRIZES. EARNED ", earned / 1e18);
-            console2.log("\tmin claim fee: ", claimCostInPrizeTokens/1e18);
-        }
-
+        return totalFees;
     }
 
     function countContiguousTierPrizes(uint _nextPrizeIndex, uint _claimCount) public view returns (uint8 tier, uint256 count) {
@@ -100,7 +121,6 @@ contract ClaimerAgent {
         uint _claimCount,
         uint _winnersLength
     ) public view returns (uint32[] memory prizeIndexLength) {
-        uint256 winnersLength = countWinners(_nextPrizeIndex, _claimCount);
         prizeIndexLength = new uint32[](_winnersLength);
         uint256 winnerIndex;
         address currentWinner;
@@ -152,47 +172,6 @@ contract ClaimerAgent {
         }
     }
 
-    function claimPrizes(uint targetClaimCount) public returns (uint) {
-        uint256 remainingPrizes = drawPrizes[computedDrawId].length - nextPrizeIndex;
-        uint256 claimCount = targetClaimCount > remainingPrizes ? remainingPrizes : targetClaimCount;
-
-        uint totalFees;
-
-        if (claimCount == 0) {
-            return 0;
-        }
-
-        while (claimCount > 0) {
-            (uint8 tier, uint256 tierPrizes) = countContiguousTierPrizes(nextPrizeIndex, claimCount);
-
-            // console2.log("claimPrizes tier, tierPrizes", tier, tierPrizes);
-
-            // count winners
-            uint256 winnersLength = countWinners(nextPrizeIndex, tierPrizes);
-
-            // console2.log("claimPrizes winnersLength", winnersLength);
-
-            // count prize indices per winner
-            uint32[] memory prizeIndexLength = countPrizeIndicesPerWinner(nextPrizeIndex, tierPrizes, winnersLength);
-
-            // console2.log("claimPrizes prizeIndexLength", prizeIndexLength.length);
-
-            // build result arrays
-            (address[] memory winners, uint32[][] memory prizeIndices) = populateArrays(nextPrizeIndex, tierPrizes, winnersLength, prizeIndexLength);
-
-            // console2.log("claimPrizes winnersLength", winners.length);
-
-            totalFees += env.claimer().claimPrizes(env.vault(), tier, winners, prizeIndices, address(this));
-
-            // console2.log("claimPrizes totalFees", totalFees);
-
-            claimCount -= tierPrizes;
-            nextPrizeIndex += tierPrizes;
-        }
-
-        return totalFees;
-    }
-
     function computePrizes() public {
         uint256 drawId = env.prizePool().getLastCompletedDrawId();
         require(drawId >= computedDrawId, "invalid draw");
@@ -207,12 +186,13 @@ contract ClaimerAgent {
                 }
             }
         }
-        // console2.log("+++++++++++++++++++++++ Draw", drawId, "has winners: ", drawPrizes[drawId].length);
-        // console2.log("canary prize size: ", env.prizePool().calculatePrizeSize(env.prizePool().numberOfTiers()) / 1e18);
-        // console2.log("Tier 0 liquidity", env.prizePool().getRemainingTierLiquidity(0) / 1e18);
-        // console2.log("Tier 1 liquidity", env.prizePool().getRemainingTierLiquidity(1) / 1e18);
-        // console2.log("Tier 2 liquidity", env.prizePool().getRemainingTierLiquidity(2) / 1e18);
-        // console2.log("Reserve", env.prizePool().reserve() / 1e18);
+        console2.log("+++++++++++++++++++++ Draw", drawId, "has winners: ", drawPrizes[drawId].length);
+        console2.log("+++++++++++++++++++++ Draw", drawId, "has tiers (inc. canary): ", env.prizePool().numberOfTiers());
+        console2.log("+++++++++++++++++++++ Expected Prize Count", env.prizePool().estimatedPrizeCount());
+        for (uint8 t = 0; t < env.prizePool().numberOfTiers(); t++) {
+            console2.log("\t\t\tTier", t, "prize size: ", env.prizePool().getTierPrizeSize(t) / 1e18);
+        }
+        console2.log("\t\t\tReserve", env.prizePool().reserve() / 1e18);
         computedDrawId = drawId;
         nextPrizeIndex = 0;
     }

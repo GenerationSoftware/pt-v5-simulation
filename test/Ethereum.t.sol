@@ -26,8 +26,7 @@ contract SimulationTest is Test {
 
     uint32 drawPeriodSeconds = 7 days;
 
-
-    uint duration = 16 days;
+    uint duration = 30 days;
     uint timeStep = 30 minutes;
     uint startTime;
 
@@ -53,12 +52,13 @@ contract SimulationTest is Test {
 
         console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
         console2.log("Draw Period (sec): ", drawPeriodSeconds);
+        console2.log("");
 
         prizePoolConfig = PrizePoolConfig({
             grandPrizePeriodDraws: 10,
             drawPeriodSeconds: drawPeriodSeconds,
-            nextDrawStartsAt: uint64(startTime),
-            numberOfTiers: 2,
+            firstDrawStartsAt: uint64(startTime),
+            numberOfTiers: 3,
             tierShares: 100,
             canaryShares: 100,
             reserveShares: 100,
@@ -75,9 +75,9 @@ contract SimulationTest is Test {
         });
 
         claimerConfig = ClaimerConfig({
-            minimumFee: 0.001e18,
+            minimumFee: 0.1e18,
             maximumFee: 1000e18,
-            timeToReachMaxFee: drawPeriodSeconds/4,
+            timeToReachMaxFee: drawPeriodSeconds/2,
             maxFeePortionOfPrize: UD2x18.wrap(0.5e18)
         });
 
@@ -145,6 +145,7 @@ contract SimulationTest is Test {
 
         uint totalDraws = duration / drawPeriodSeconds;
         uint missedDraws = (totalDraws) - drawAgent.drawCount();
+        console2.log("");
         console2.log("Expected draws", totalDraws);
         console2.log("Actual draws", drawAgent.drawCount());
         console2.log("Missed Draws", missedDraws);

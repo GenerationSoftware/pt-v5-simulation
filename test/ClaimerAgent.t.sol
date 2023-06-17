@@ -32,7 +32,9 @@ contract ClaimerAgentTest is Test {
             gasPriceInPrizeTokens: 90000 gwei,
             gasUsagePerClaim: 150_000,
             gasUsagePerLiquidation: 500_000,
-            gasUsagePerCompleteDraw: 200_000
+            gasUsagePerStartDraw: 100_000,
+            gasUsagePerCompleteDraw: 100_000,
+            gasUsagePerDispatchDraw: 100_000
         });
 
         vm.mockCall(address(env), abi.encodeWithSignature("prizePool()"), abi.encode(address(prizePool)));
@@ -43,9 +45,9 @@ contract ClaimerAgentTest is Test {
         vm.mockCall(address(env), abi.encodeWithSignature("users(uint256)", 1), abi.encode(user2));
         vm.mockCall(address(env), abi.encodeWithSignature("gasConfig()"), abi.encode(gasConfig));
 
-        vm.mockCall(address(prizePool), abi.encodeWithSelector(PrizePool.getTierPrizeCount.selector, 0), abi.encode(1));
-        vm.mockCall(address(prizePool), abi.encodeWithSelector(PrizePool.getTierPrizeCount.selector, 1), abi.encode(4));
-        vm.mockCall(address(prizePool), abi.encodeWithSelector(PrizePool.getLastCompletedDrawId.selector), abi.encode(1));
+        vm.mockCall(address(prizePool), abi.encodeWithSelector(prizePool.getTierPrizeCount.selector, 0), abi.encode(1));
+        vm.mockCall(address(prizePool), abi.encodeWithSelector(prizePool.getTierPrizeCount.selector, 1), abi.encode(4));
+        vm.mockCall(address(prizePool), abi.encodeWithSelector(prizePool.getLastCompletedDrawId.selector), abi.encode(1));
         vm.mockCall(address(prizePool), abi.encodeWithSignature("numberOfTiers()"), abi.encode(numTiers));
 
         mockNoPrizes(user1, numTiers);
@@ -169,39 +171,6 @@ contract ClaimerAgentTest is Test {
         assertEq(winnerPrizeIndices[0][0], 1);
         assertEq(winnerPrizeIndices[0][1], 3);
         assertEq(winnerPrizeIndices[1][0], 2);
-    }
-
-    function testClaimPrizes() public {
-        vm.mockCall(address(prizePool), abi.encodeWithSelector(PrizePool.isWinner.selector, address(vault), user1, 0, 0), abi.encode(true));
-        vm.mockCall(address(prizePool), abi.encodeWithSelector(PrizePool.isWinner.selector, address(vault), user1, 1, 1), abi.encode(true));
-        vm.mockCall(address(prizePool), abi.encodeWithSelector(PrizePool.isWinner.selector, address(vault), user1, 1, 3), abi.encode(true));
-        vm.mockCall(address(prizePool), abi.encodeWithSelector(PrizePool.isWinner.selector, address(vault), user2, 1, 2), abi.encode(true));
-
-        agent.computePrizes();
-
-        address[] memory winners;
-        uint32[][] memory winnerPrizeIndices;
-
-        winners = new address[](1);
-        winners[0] = user1;
-        winnerPrizeIndices = new uint32[][](1);
-        winnerPrizeIndices[0] = new uint32[](1);
-        winnerPrizeIndices[0][0] = 0;
-        vm.mockCall(address(claimer), abi.encodeWithSelector(Claimer.claimPrizes.selector, address(vault), 0, winners, winnerPrizeIndices, address(agent)), abi.encode(100));
-        assertEq(agent.claimPrizes(1), 100);
-
-
-        winners = new address[](2);
-        winners[0] = user1;
-        winners[1] = user2;
-        winnerPrizeIndices = new uint32[][](2);
-        winnerPrizeIndices[0] = new uint32[](2);
-        winnerPrizeIndices[1] = new uint32[](1);
-        winnerPrizeIndices[0][0] = 1;
-        winnerPrizeIndices[0][1] = 3;
-        winnerPrizeIndices[1][0] = 2;
-        vm.mockCall(address(claimer), abi.encodeWithSelector(Claimer.claimPrizes.selector, address(vault), 1, winners, winnerPrizeIndices, address(agent)), abi.encode(300));
-        assertEq(agent.claimPrizes(3), 300);
     }
 
     function mockNoPrizes(address user, uint numTiers) public {
