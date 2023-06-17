@@ -172,13 +172,23 @@ contract ClaimerAgent {
         }
     }
 
+    function countTierPrizes(uint8 _tier) public view returns (uint256) {
+        uint32 tierPrizes;
+        for (uint p = 0; p < drawPrizes[computedDrawId].length; p++) {
+            if (drawPrizes[computedDrawId][p].tier == _tier) {
+                tierPrizes++;
+            }
+        }
+        return tierPrizes;
+    }
+
     function computePrizes() public {
         uint256 drawId = env.prizePool().getLastCompletedDrawId();
         require(drawId >= computedDrawId, "invalid draw");
         Vault vault = env.vault();
-        for (uint i = 0; i < env.userCount(); i++) {
-            address user = env.users(i);
-            for (uint8 t = 0; t < env.prizePool().numberOfTiers(); t++) {
+        for (uint8 t = 0; t < env.prizePool().numberOfTiers(); t++) { // make sure canary tier is last
+            for (uint i = 0; i < env.userCount(); i++) {
+                address user = env.users(i);
                 for (uint32 p = 0; p < env.prizePool().getTierPrizeCount(t); p++) {
                     if (env.prizePool().isWinner(address(vault), user, t, p)) {
                         drawPrizes[drawId].push(Prize(t, user, p));
@@ -186,14 +196,18 @@ contract ClaimerAgent {
                 }
             }
         }
+        computedDrawId = drawId;
+        nextPrizeIndex = 0;
+
+        console2.log("+++++++++++++++++++++ Prize Claim Cost", env.gasConfig().gasUsagePerClaim * env.gasConfig().gasPriceInPrizeTokens / 1e18);
         console2.log("+++++++++++++++++++++ Draw", drawId, "has winners: ", drawPrizes[drawId].length);
         console2.log("+++++++++++++++++++++ Draw", drawId, "has tiers (inc. canary): ", env.prizePool().numberOfTiers());
         console2.log("+++++++++++++++++++++ Expected Prize Count", env.prizePool().estimatedPrizeCount());
         for (uint8 t = 0; t < env.prizePool().numberOfTiers(); t++) {
-            console2.log("\t\t\tTier", t, "prize size: ", env.prizePool().getTierPrizeSize(t) / 1e18);
+            console2.log("\t\t\tTier", t);
+            console2.log("\t\t\t\tprize size: ", env.prizePool().getTierPrizeSize(t) / 1e18, "prize count: ", countTierPrizes(t));
         }
         console2.log("\t\t\tReserve", env.prizePool().reserve() / 1e18);
-        computedDrawId = drawId;
-        nextPrizeIndex = 0;
+
     }
 }

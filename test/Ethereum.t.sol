@@ -25,11 +25,12 @@ contract SimulationTest is Test {
     string runStatsOut = string.concat(vm.projectRoot(), "/data/simulation.csv");
 
     uint32 drawPeriodSeconds = 7 days;
+    uint32 grandPrizePeriodDraws = 52;
 
     uint duration = 30 days;
     uint timeStep = 30 minutes;
     uint startTime;
-
+    
     uint totalValueLocked = 10_000_000e18;
     uint apr = 0.04e18;
     uint numUsers = 2;
@@ -55,13 +56,13 @@ contract SimulationTest is Test {
         console2.log("");
 
         prizePoolConfig = PrizePoolConfig({
-            grandPrizePeriodDraws: 10,
+            grandPrizePeriodDraws: grandPrizePeriodDraws,
             drawPeriodSeconds: drawPeriodSeconds,
             firstDrawStartsAt: uint64(startTime),
             numberOfTiers: 3,
             tierShares: 100,
-            canaryShares: 100,
-            reserveShares: 100,
+            canaryShares: 20,
+            reserveShares: 20,
             claimExpansionThreshold: UD2x18.wrap(0.8e18),
             smoothing: SD1x18.wrap(0.3e18)
         });
@@ -77,7 +78,7 @@ contract SimulationTest is Test {
         claimerConfig = ClaimerConfig({
             minimumFee: 0.1e18,
             maximumFee: 1000e18,
-            timeToReachMaxFee: drawPeriodSeconds/2,
+            timeToReachMaxFee: drawPeriodSeconds/7,
             maxFeePortionOfPrize: UD2x18.wrap(0.5e18)
         });
 
