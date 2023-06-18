@@ -199,13 +199,14 @@ contract ClaimerAgent {
         computedDrawId = drawId;
         nextPrizeIndex = 0;
 
-        console2.log("+++++++++++++++++++++ Prize Claim Cost", env.gasConfig().gasUsagePerClaim * env.gasConfig().gasPriceInPrizeTokens / 1e18);
+        console2.log("+++++++++++++++++++++ Prize Claim Cost (cents):", (env.gasConfig().gasUsagePerClaim * env.gasConfig().gasPriceInPrizeTokens) / 1e16);
         console2.log("+++++++++++++++++++++ Draw", drawId, "has winners: ", drawPrizes[drawId].length);
         console2.log("+++++++++++++++++++++ Draw", drawId, "has tiers (inc. canary): ", env.prizePool().numberOfTiers());
         console2.log("+++++++++++++++++++++ Expected Prize Count", env.prizePool().estimatedPrizeCount());
         for (uint8 t = 0; t < env.prizePool().numberOfTiers(); t++) {
+            uint prizeSize = env.prizePool().getTierPrizeSize(t) / 1e16;
             console2.log("\t\t\tTier", t);
-            console2.log("\t\t\t\tprize size: ", env.prizePool().getTierPrizeSize(t) / 1e18, "prize count: ", countTierPrizes(t));
+            console2.log("\t\t\t\tprize size (cents): ", prizeSize, "prize count: ", countTierPrizes(t));
         }
         console2.log("\t\t\tReserve", env.prizePool().reserve() / 1e18);
 

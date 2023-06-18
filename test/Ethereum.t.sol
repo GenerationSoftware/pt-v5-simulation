@@ -24,15 +24,15 @@ contract SimulationTest is Test {
 
     string runStatsOut = string.concat(vm.projectRoot(), "/data/simulation.csv");
 
-    uint32 drawPeriodSeconds = 7 days;
+    uint32 drawPeriodSeconds = 1 days;
     uint32 grandPrizePeriodDraws = 52;
 
-    uint duration = 30 days;
-    uint timeStep = 30 minutes;
+    uint duration = 90 days;
+    uint timeStep = 60 minutes;
     uint startTime;
     
-    uint totalValueLocked = 10_000_000e18;
-    uint apr = 0.04e18;
+    uint totalValueLocked = 5_000_000e18;
+    uint apr = 0.02e18;
     uint numUsers = 2;
 
     uint exchangeRatePrizeTokenToUnderlyingFixedPoint18 = 1e18;
@@ -79,14 +79,16 @@ contract SimulationTest is Test {
             minimumFee: 0.1e18,
             maximumFee: 1000e18,
             timeToReachMaxFee: drawPeriodSeconds/7,
-            maxFeePortionOfPrize: UD2x18.wrap(0.5e18)
+            maxFeePortionOfPrize: UD2x18.wrap(0.1e18)
         });
 
         // gas price is currently 50 gwei of ether.
         // ether is worth 1800 POOL
         // 50 * 1800 = 90000 POOL
+        // On Optimism gas is 0.000001588 gwei
+        // 0.000001588 * 1800 = 0.0028584 POOL
         gasConfig = GasConfig({
-            gasPriceInPrizeTokens: 90000 gwei,
+            gasPriceInPrizeTokens: 700 gwei,
             gasUsagePerClaim: 150_000,
             gasUsagePerLiquidation: 500_000,
             gasUsagePerStartDraw: 152_473,
