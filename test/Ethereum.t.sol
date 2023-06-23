@@ -3,9 +3,10 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 import { console2 } from "forge-std/console2.sol";
-import { UFixed32x4 } from "v5-liquidator/libraries/FixedMathLib.sol";
+// import { UFixed32x4 } from "v5-liquidator/libraries/FixedMathLib.sol";
 import { UD2x18 } from "prb-math/UD2x18.sol";
 import { SD1x18 } from "prb-math/SD1x18.sol";
+import { SD59x18 } from "prb-math/SD59x18.sol";
 import { TwabLib } from "v5-twab-controller/libraries/TwabLib.sol";
 
 import {
@@ -27,7 +28,7 @@ contract EthereumTest is Test {
     uint32 drawPeriodSeconds = 1 days;
     uint16 grandPrizePeriodDraws = 365;
 
-    uint duration = 60 days + 0.5 days;
+    uint duration = 5 days + 0.5 days;
     uint timeStep = 60 minutes;
     uint startTime;
     
@@ -68,11 +69,8 @@ contract EthereumTest is Test {
         });
 
         liquidatorConfig = LiquidatorConfig({
-            swapMultiplier: UFixed32x4.wrap(0.3e4),
-            liquidityFraction: UFixed32x4.wrap(0.1e4),
-            virtualReserveIn: 1000e18,
-            virtualReserveOut: 1000e18,
-            mink: 1000e18*1000e18
+            initialPrice: SD59x18.wrap(1e18),
+            decayConstant: SD59x18.wrap(0.005e18)
         });
 
         claimerConfig = ClaimerConfig({

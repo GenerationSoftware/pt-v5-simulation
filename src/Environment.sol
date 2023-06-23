@@ -6,10 +6,14 @@ import { VaultFactory } from "v5-vault/VaultFactory.sol";
 import { ERC20PermitMock } from "v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 import { DrawAuction } from "v5-draw-beacon/DrawAuction.sol";
 import { TwabController } from "v5-twab-controller/TwabController.sol";
-import { ILiquidationSource } from "v5-liquidator-interfaces/ILiquidationSource.sol";
-import { LiquidationPair } from "v5-liquidator/LiquidationPair.sol";
-import { LiquidationPairFactory } from "v5-liquidator/LiquidationPairFactory.sol";
-import { LiquidationRouter } from "v5-liquidator/LiquidationRouter.sol";
+// import { ILiquidationSource } from "v5-liquidator-interfaces/ILiquidationSource.sol";
+import { LiquidationPair as OldLiquidationPair } from "v5-liquidator/LiquidationPair.sol";
+// import { LiquidationPairFactory } from "v5-liquidator/LiquidationPairFactory.sol";
+// import { LiquidationRouter } from "v5-liquidator/LiquidationRouter.sol";
+import { ILiquidationSource } from "v5-cgda-liquidator/interfaces/ILiquidationSource.sol";
+import { LiquidationPair, SD59x18 } from "v5-cgda-liquidator/LiquidationPair.sol";
+import { LiquidationPairFactory } from "v5-cgda-liquidator/LiquidationPairFactory.sol";
+import { LiquidationRouter } from "v5-cgda-liquidator/LiquidationRouter.sol";
 import { UFixed32x4 } from "v5-liquidator/libraries/FixedMathLib.sol";
 import { PrizePool, ConstructorParams } from "v5-prize-pool/PrizePool.sol";
 import { Claimer } from "v5-vrgda-claimer/Claimer.sol";
@@ -33,11 +37,8 @@ struct PrizePoolConfig {
 }
 
 struct LiquidatorConfig {
-    UFixed32x4 swapMultiplier;
-    UFixed32x4 liquidityFraction;
-    uint128 virtualReserveIn;
-    uint128 virtualReserveOut;
-    uint256 mink;
+    SD59x18 initialPrice;
+    SD59x18 decayConstant;
 }
 
 struct ClaimerConfig {
@@ -143,13 +144,12 @@ contract Environment is CommonBase, StdCheats {
             ILiquidationSource(address(vault)),
             address(prizeToken),
             address(vault),
-            _liquidatorConfig.swapMultiplier,
-            _liquidatorConfig.liquidityFraction,
-            _liquidatorConfig.virtualReserveIn,
-            _liquidatorConfig.virtualReserveOut,
-            _liquidatorConfig.mink
+            _prizePoolConfig.drawPeriodSeconds,
+            uint32(_prizePoolConfig.firstDrawStartsAt) + uint32(_prizePoolConfig.drawPeriodSeconds),
+            _liquidatorConfig.initialPrice,
+            _liquidatorConfig.decayConstant
         );
-        vault.setLiquidationPair(pair);
+        vault.setLiquidationPair(OldLiquidationPair(address(pair)));
     }
 
     function addUsers(uint count, uint depositSize) external {
