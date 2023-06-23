@@ -25,7 +25,7 @@ contract EthereumTest is Test {
     string runStatsOut = string.concat(vm.projectRoot(), "/data/simulation.csv");
 
     uint32 drawPeriodSeconds = 1 days;
-    uint32 grandPrizePeriodDraws = 365;
+    uint16 grandPrizePeriodDraws = 365;
 
     uint duration = 60 days + 0.5 days;
     uint timeStep = 60 minutes;

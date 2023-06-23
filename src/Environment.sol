@@ -21,7 +21,7 @@ import { StdCheats } from "forge-std/StdCheats.sol";
 import { YieldVaultMintRate } from "src/YieldVaultMintRate.sol";
 
 struct PrizePoolConfig {
-    uint32 grandPrizePeriodDraws;
+    uint16 grandPrizePeriodDraws;
     uint32 drawPeriodSeconds;
     uint64 firstDrawStartsAt;
     uint8 numberOfTiers;
