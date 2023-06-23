@@ -11,7 +11,7 @@ import { LiquidationPair } from "v5-liquidator/LiquidationPair.sol";
 import { LiquidationPairFactory } from "v5-liquidator/LiquidationPairFactory.sol";
 import { LiquidationRouter } from "v5-liquidator/LiquidationRouter.sol";
 import { UFixed32x4 } from "v5-liquidator/libraries/FixedMathLib.sol";
-import { PrizePool } from "v5-prize-pool/PrizePool.sol";
+import { PrizePool, ConstructorParams } from "v5-prize-pool/PrizePool.sol";
 import { Claimer } from "v5-vrgda-claimer/Claimer.sol";
 import { UD2x18, intoUD60x18 } from "prb-math/UD2x18.sol";
 import { SD1x18, unwrap, UNIT } from "prb-math/SD1x18.sol";
@@ -23,7 +23,7 @@ import { YieldVaultMintRate } from "src/YieldVaultMintRate.sol";
 struct PrizePoolConfig {
     uint32 grandPrizePeriodDraws;
     uint32 drawPeriodSeconds;
-    uint64 nextDrawStartsAt;
+    uint64 firstDrawStartsAt;
     uint8 numberOfTiers;
     uint8 tierShares;
     uint8 canaryShares;
@@ -90,19 +90,23 @@ contract Environment is CommonBase, StdCheats {
             address(this)
         );
         twab = new TwabController();
-        prizePool = new PrizePool(
-            prizeToken,
-            twab,
-            _prizePoolConfig.grandPrizePeriodDraws,
-            _prizePoolConfig.drawPeriodSeconds,
-            _prizePoolConfig.nextDrawStartsAt,
-            _prizePoolConfig.numberOfTiers,
-            _prizePoolConfig.tierShares,
-            _prizePoolConfig.canaryShares,
-            _prizePoolConfig.reserveShares,
-            _prizePoolConfig.claimExpansionThreshold,
-            _prizePoolConfig.smoothing
-        );
+
+        ConstructorParams memory params = ConstructorParams({
+            prizeToken: prizeToken,
+            twabController: twab,
+            drawManager: address(0),
+            grandPrizePeriodDraws: _prizePoolConfig.grandPrizePeriodDraws,
+            drawPeriodSeconds: _prizePoolConfig.drawPeriodSeconds,
+            firstDrawStartsAt:  _prizePoolConfig.firstDrawStartsAt,
+            numberOfTiers: _prizePoolConfig.numberOfTiers,
+            tierShares:    _prizePoolConfig.tierShares,
+            canaryShares:  _prizePoolConfig.canaryShares,
+            reserveShares: _prizePoolConfig.reserveShares,
+            claimExpansionThreshold:   _prizePoolConfig.claimExpansionThreshold,
+            smoothing: _prizePoolConfig.smoothing
+        });
+
+        prizePool = new PrizePool(params);
         vaultFactory = new VaultFactory();
 
         pairFactory = new LiquidationPairFactory();
@@ -121,7 +125,7 @@ contract Environment is CommonBase, StdCheats {
             _prizePoolConfig.drawPeriodSeconds / 8
         );
 
-        prizePool.setManager(address(drawAuction));
+        prizePool.setDrawManager(address(drawAuction));
 
         vault = Vault(vaultFactory.deployVault(
             underlyingToken,
