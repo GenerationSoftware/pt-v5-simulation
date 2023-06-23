@@ -17,3 +17,6 @@
 [submodule "lib/v5-draw-beacon"]
 	path = lib/v5-draw-beacon
 	url = https://github.com/pooltogether/v5-draw-beacon
+[submodule "lib/v5-cgda-liquidator"]
+	path = lib/v5-cgda-liquidator
+	url = https://github.com/pooltogether/v5-cgda-liquidator
