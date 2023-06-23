@@ -76,7 +76,7 @@ contract LiquidatorAgent {
             totalApproxProfit += profit;
 
             // console2.log("@ ", block.timestamp / 1 days);
-            console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ LiquidatorAgent swapped POOL for Yield", cost/1e18, want/1e18);
+            // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ LiquidatorAgent swapped POOL for Yield", cost/1e18, want/1e18);
             // console2.log("New reserve: ", env.pair().virtualReserveIn()/1e18, env.pair().virtualReserveOut()/1e18);
             uint availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));
             // console2.log("Available yield", availableYield, "/1e18:", availableYield / 1e18);

@@ -10,6 +10,8 @@ contract DrawAgent {
 
     uint public drawCount;
 
+    uint public constant SEED = 0x23423;
+
     constructor (Environment _env) {
         env = _env;
     }
@@ -35,11 +37,12 @@ contract DrawAgent {
 
             if (reward >= minimum) {
                 console2.log("---------------- DrawAgent Draw: %s", nextDrawId);
-                console2.log("---------------- Percentage of the reserve covering DrawAuction reward: %s", reserve > 0 ? reward * 100 / reserve : 0);
-                env.drawAuction().completeAndStartNextDraw(uint256(keccak256(abi.encodePacked(block.timestamp))));
+                // console2.log("---------------- Percentage of the reserve covering DrawAuction reward: %s", reserve > 0 ? reward * 100 / reserve : 0);
+                env.drawAuction().completeAndStartNextDraw(uint256(keccak256(abi.encodePacked(block.timestamp, SEED))));
+                // console2.log("---------------- Total liquidity for draw: ", env.prizePool().getTotalContributionsForCompletedDraw() / 1e18);
                 drawCount++;
             } else {
-                console2.log("---------------- Insufficient reward to complete Draw: %s", nextDrawId);
+                // console2.log("---------------- Insufficient reward to complete Draw: %s", nextDrawId);
             }
         }
     }
