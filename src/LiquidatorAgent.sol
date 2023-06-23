@@ -20,10 +20,7 @@ contract LiquidatorAgent {
         // console2.log("~~~~ gasCostInPrizeTokens\t", gasCostInPrizeTokens);
 
         uint availableVaultShares = env.pair().maxAmountOut();
-        uint requiredPrizeTokens = env.pair().computeExactAmountIn(availableVaultShares);
-
-        // console2.log("<<<< availableVaultShares\t", availableVaultShares);
-        // console2.log("\t requiredPrizeTokens\t", requiredPrizeTokens);
+        console2.log("<<<< availableVaultShares\t", availableVaultShares);
 
         uint iterations = 10;
         uint max = (iterations**iterations);
@@ -38,6 +35,8 @@ contract LiquidatorAgent {
 
         for (uint i = 1; i <= iterations; i++) {
             uint thisWant = (i**i * availableVaultShares) / max;
+
+            console2.log("?????????????????????????????? Checking ", thisWant, "out of", availableVaultShares);
 
             uint requiredPrizeTokens = env.pair().computeExactAmountIn(thisWant);
 
