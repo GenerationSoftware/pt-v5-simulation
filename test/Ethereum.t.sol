@@ -6,7 +6,7 @@ import { console2 } from "forge-std/console2.sol";
 // import { UFixed32x4 } from "v5-liquidator/libraries/FixedMathLib.sol";
 import { UD2x18 } from "prb-math/UD2x18.sol";
 import { SD1x18 } from "prb-math/SD1x18.sol";
-import { SD59x18 } from "prb-math/SD59x18.sol";
+import { SD59x18, toSD59x18, convert, wrap } from "prb-math/SD59x18.sol";
 import { TwabLib } from "v5-twab-controller/libraries/TwabLib.sol";
 
 import {
@@ -20,6 +20,7 @@ import {
 import { ClaimerAgent } from "src/ClaimerAgent.sol";
 import { DrawAgent } from "src/DrawAgent.sol";
 import { LiquidatorAgent } from "src/LiquidatorAgent.sol";
+import { ValuesOverTime } from "src/ValuesOverTime.sol";
 
 contract EthereumTest is Test {
 
@@ -28,15 +29,13 @@ contract EthereumTest is Test {
     uint32 drawPeriodSeconds = 1 days;
     uint16 grandPrizePeriodDraws = 365;
 
-    uint duration = 5 days + 0.5 days;
-    uint timeStep = 60 minutes;
+    uint duration = 4 days + 0.5 days;
+    uint timeStep = 5 minutes;
     uint startTime;
-    
+
     uint totalValueLocked = 100_000_000e18;
     uint apr = 0.05e18;
-    uint numUsers = 2;
-
-    uint exchangeRatePrizeTokenToUnderlyingFixedPoint18 = 1e18;
+    uint numUsers = 1;
 
     PrizePoolConfig public prizePoolConfig;
     LiquidatorConfig public liquidatorConfig;
@@ -48,13 +47,14 @@ contract EthereumTest is Test {
     LiquidatorAgent public liquidatorAgent;
     DrawAgent public drawAgent;
 
+    ValuesOverTime public exchangeRateUnderlyingToPoolToken;
+
     function setUp() public {
         startTime = block.timestamp + 400 days;
         vm.warp(startTime);
 
-        console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
-        console2.log("Draw Period (sec): ", drawPeriodSeconds);
-        console2.log("");
+        exchangeRateUnderlyingToPoolToken = new ValuesOverTime();
+        exchangeRateUnderlyingToPoolToken.add(startTime, wrap(10e18));
 
         prizePoolConfig = PrizePoolConfig({
             grandPrizePeriodDraws: grandPrizePeriodDraws,
@@ -69,8 +69,8 @@ contract EthereumTest is Test {
         });
 
         liquidatorConfig = LiquidatorConfig({
-            initialPrice: SD59x18.wrap(1e18),
-            decayConstant: SD59x18.wrap(0.005e18)
+            initialPrice: convert(0.1e18),
+            decayConstant: SD59x18.wrap(0.0003e18)
         });
 
         claimerConfig = ClaimerConfig({
@@ -80,11 +80,6 @@ contract EthereumTest is Test {
             maxFeePortionOfPrize: UD2x18.wrap(0.2e18)
         });
 
-        // gas price is currently 50 gwei of ether.
-        // ether is worth 1800 POOL
-        // 50 * 1800 = 90000 POOL
-        // On Optimism gas is 0.000001588 gwei
-        // 0.000001588 * 1800 = 0.0028584 POOL
         gasConfig = GasConfig({
             gasPriceInPrizeTokens: 700 gwei,
             gasUsagePerClaim: 150_000,
@@ -106,13 +101,11 @@ contract EthereumTest is Test {
         drawAgent = new DrawAgent(env);
     }
 
-    function testSimulation() public noGasMetering {
+    function testEthereum() public noGasMetering {
+        vm.warp(startTime);
+
         env.addUsers(numUsers, totalValueLocked / numUsers);
-
         env.setApr(apr);
-
-        // vm.writeFile(runStatsOut,"");
-        // vm.writeLine(runStatsOut, "Timestamp,Completed Draws,Expected Draws,Available Yield,Available Yield (e18),Available Vault Shares,Available Vault Shares (e18),Required Prize Tokens,Required Prize Tokens (e18),Prize Pool Reserve,Prize Pool Reserve (e18)");
 
         for (uint i = startTime; i < startTime + duration; i += timeStep) {
             vm.warp(i);
@@ -120,27 +113,10 @@ contract EthereumTest is Test {
             uint availableVaultShares = env.pair().maxAmountOut();
             uint requiredPrizeTokens = env.pair().computeExactAmountIn(availableVaultShares);
             uint prizePoolReserve = env.prizePool().reserve();
-            // uint unrealizedReserve = env.prizePool().reserveForNextDraw();
-            // string memory valuesPart1 = string.concat(
-            //     vm.toString(i), ",",
-            //     vm.toString(drawAgent.drawCount()), ",",
-            //     vm.toString((i - startTime) / drawPeriodSeconds), ",",
-            //     vm.toString(availableYield), ",",
-            //     vm.toString(availableYield / 1e18), ",",
-            //     vm.toString(availableVaultShares), ",",
-            //     vm.toString(availableVaultShares / 1e18), ",",
-            //     vm.toString(requiredPrizeTokens), ",",
-            //     vm.toString(requiredPrizeTokens / 1e18), ","
-            // );
-            // // split to avoid stack too deep
-            // string memory valuesPart2 = string.concat(
-            //     vm.toString(prizePoolReserve), ",",
-            //     vm.toString(prizePoolReserve / 1e18)
-            // );
-            // vm.writeLine(runStatsOut,string.concat(valuesPart1,valuesPart2));
+
             env.mintYield();
             claimerAgent.check();
-            liquidatorAgent.check(exchangeRatePrizeTokenToUnderlyingFixedPoint18);
+            liquidatorAgent.check(exchangeRateUnderlyingToPoolToken.get(block.timestamp));
             drawAgent.check();
         }
 
@@ -195,7 +171,11 @@ contract EthereumTest is Test {
     }
 
     function printTotalClaimFees() public {
-        uint averageFeePerClaim = claimerAgent.totalFees() / (claimerAgent.totalNormalPrizesClaimed() + claimerAgent.totalCanaryPrizesClaimed());
+        uint totalClaims = (claimerAgent.totalNormalPrizesClaimed() + claimerAgent.totalCanaryPrizesClaimed());
+        uint averageFeePerClaim;
+        if (totalClaims != 0) {
+            averageFeePerClaim = claimerAgent.totalFees() / totalClaims;
+        }
         console2.log("");
         console2.log("Average fee per claim (cents): ", averageFeePerClaim / 1e16);
     }

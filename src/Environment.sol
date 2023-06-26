@@ -147,7 +147,8 @@ contract Environment is CommonBase, StdCheats {
             _prizePoolConfig.drawPeriodSeconds,
             uint32(_prizePoolConfig.firstDrawStartsAt) + uint32(_prizePoolConfig.drawPeriodSeconds),
             _liquidatorConfig.initialPrice,
-            _liquidatorConfig.decayConstant
+            _liquidatorConfig.decayConstant,
+            SD59x18.wrap(0.8e18)
         );
         vault.setLiquidationPair(OldLiquidationPair(address(pair)));
     }

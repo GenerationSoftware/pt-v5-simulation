@@ -29,6 +29,7 @@ contract ClaimerAgent {
 
     mapping(uint256 => uint8) public drawNumberOfTiers;
     mapping(uint256 => mapping(uint8 => uint256)) public drawNormalTierComputedPrizeCounts;
+    mapping(uint256 => mapping(uint8 => uint256)) public drawNormalTierInsufficientLiquidityPrizeCounts;
     mapping(uint256 => mapping(uint8 => uint256)) public drawNormalTierClaimedPrizeCounts;
 
     Environment public env;
@@ -89,6 +90,13 @@ contract ClaimerAgent {
                 }
             }
 
+            uint32 maxPrizesPerLiquidity = uint32(env.prizePool().getTierRemainingLiquidity(tier) / env.prizePool().getTierPrizeSize(tier));
+
+            if (targetClaimCount > maxPrizesPerLiquidity) {
+                drawNormalTierInsufficientLiquidityPrizeCounts[drawId][tier] += targetClaimCount - maxPrizesPerLiquidity;
+                targetClaimCount = maxPrizesPerLiquidity;
+            }
+
             if (targetClaimCount > 0) {
                 // count winners
                 uint256 winnersLength = countWinners(nextPrizeIndex, targetClaimCount);
@@ -131,7 +139,6 @@ contract ClaimerAgent {
     function countContiguousTierPrizes(uint _nextPrizeIndex, uint _claimCount) public view returns (uint8 tier, uint256 count) {
         uint256 prizeCount;
         bool init = false;
-        uint8 tier;
         for (uint p = _nextPrizeIndex; p < _nextPrizeIndex + _claimCount; p++) {
             if (!init) {
                 tier = drawPrizes[computedDrawId][p].tier;
