@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 import "forge-std/console2.sol";
 
 import { Environment } from "src/Environment.sol";
+import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
 
 contract LiquidatorAgent {
 
@@ -14,7 +15,7 @@ contract LiquidatorAgent {
         env.prizeToken().approve(address(env.router()), type(uint).max);
     }
 
-    function check(uint exchangeRatePrizeTokenToUnderlyingFixedPoint18) public {
+    function check(SD59x18 exchangeRatePrizeTokenToUnderlying) public {
         uint gasCostInPrizeTokens = env.gasConfig().gasPriceInPrizeTokens * env.gasConfig().gasUsagePerLiquidation;
 
         // console2.log("~~~~ gasCostInPrizeTokens\t", gasCostInPrizeTokens);
@@ -42,7 +43,7 @@ contract LiquidatorAgent {
             uint requiredPrizeTokens = env.pair().computeExactAmountIn(thisWant);
 
             uint liquidationCost = requiredPrizeTokens;
-            uint liquidationRevenue = (thisWant * 1e18) / exchangeRatePrizeTokenToUnderlyingFixedPoint18;
+            uint liquidationRevenue = uint(convert(convert(int(thisWant * 1e18)).div(exchangeRatePrizeTokenToUnderlying)));
 
             if (liquidationRevenue > liquidationCost) {
                 uint thisProfit = liquidationRevenue - liquidationCost;
