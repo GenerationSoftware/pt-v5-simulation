@@ -27,3 +27,6 @@
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
+[submodule "lib/pt-owner-manager-contracts"]
+	path = lib/pt-owner-manager-contracts
+	url = https://github.com/GenerationSoftware/pt-owner-manager-contracts
