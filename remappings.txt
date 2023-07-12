@@ -13,3 +13,4 @@ v5-vrgda-claimer/=lib/pt-v5-claimer/src/
 openzeppelin/=lib/openzeppelin-contracts/contracts/
 prb-math/=lib/pt-v5-prize-pool/lib/prb-math/src/
 owner-manager-contracts=lib/pt-owner-manager-contracts/contracts/
+v5-cgda-liquidator=lib/pt-v5-cgda-liquidator/src/

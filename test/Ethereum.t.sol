@@ -9,7 +9,7 @@ import { SD1x18 } from "prb-math/SD1x18.sol";
 import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
 import { TwabLib } from "v5-twab-controller/libraries/TwabLib.sol";
 
-import { Environment, PrizePoolConfig, LiquidatorConfig, ClaimerConfig, GasConfig } from "src/Environment.sol";
+import { Environment, PrizePoolConfig, CgdaLiquidatorConfig, LiquidatorConfig, ClaimerConfig, GasConfig } from "src/Environment.sol";
 
 import { ClaimerAgent } from "src/ClaimerAgent.sol";
 import { DrawAgent } from "src/DrawAgent.sol";
@@ -33,7 +33,6 @@ contract EthereumTest is Test {
   ValuesOverTime public exchangeRatePrizeTokenToUnderlying;
 
   PrizePoolConfig public prizePoolConfig;
-  LiquidatorConfig public liquidatorConfig;
   ClaimerConfig public claimerConfig;
   GasConfig public gasConfig;
   Environment public env;
@@ -65,14 +64,6 @@ contract EthereumTest is Test {
       smoothing: SD1x18.wrap(0.3e18)
     });
 
-    liquidatorConfig = LiquidatorConfig({
-      swapMultiplier: UFixed32x4.wrap(0.3e4),
-      liquidityFraction: UFixed32x4.wrap(0.1e4),
-      virtualReserveIn: 1000e18,
-      virtualReserveOut: 1000e18,
-      mink: 1000e18 * 1000e18
-    });
-
     claimerConfig = ClaimerConfig({
       minimumFee: 0.1e18,
       maximumFee: 1000e18,
@@ -94,7 +85,27 @@ contract EthereumTest is Test {
       gasUsagePerDispatchDraw: 250_000
     });
 
-    env = new Environment(prizePoolConfig, liquidatorConfig, claimerConfig, gasConfig);
+    env = new Environment();
+    env.initialize(prizePoolConfig, claimerConfig, gasConfig);
+
+    // env.initializeVmmLiquidator(
+    //   LiquidatorConfig({
+    //     swapMultiplier: UFixed32x4.wrap(0.3e4),
+    //     liquidityFraction: UFixed32x4.wrap(0.1e4),
+    //     virtualReserveIn: 1000e18,
+    //     virtualReserveOut: 1000e18,
+    //     mink: 1000e18 * 1000e18
+    //   })
+    // );
+
+    env.initializeCgdaLiquidator(
+      CgdaLiquidatorConfig({
+        decayConstant: wrap(0.001e18),
+        exchangeRatePrizeTokenToUnderlying: exchangeRatePrizeTokenToUnderlying.get(startTime),
+        periodLength: drawPeriodSeconds,
+        periodOffset: uint32(startTime)
+      })
+    );
 
     claimerAgent = new ClaimerAgent(env);
     liquidatorAgent = new LiquidatorAgent(env);
