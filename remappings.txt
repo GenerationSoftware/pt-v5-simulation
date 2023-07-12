@@ -12,3 +12,4 @@ v5-vault-test/=lib/pt-v5-vault/test/
 v5-vrgda-claimer/=lib/pt-v5-claimer/src/
 openzeppelin/=lib/openzeppelin-contracts/contracts/
 prb-math/=lib/prb-math/src/
+owner-manager-contracts=lib/pt-owner-manager-contracts/contracts/
