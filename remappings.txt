@@ -11,4 +11,4 @@ v5-vault/=lib/pt-v5-vault/src/
 v5-vault-test/=lib/pt-v5-vault/test/
 v5-vrgda-claimer/=lib/pt-v5-claimer/src/
 openzeppelin/=lib/pt-v5-liquidator/lib/openzeppelin-contracts/contracts/
-prb-math/=lib/pt-v5-claimer/lib/prb-math/src/
+prb-math/=lib/prb-math/src/
