@@ -6,6 +6,7 @@ import { console2 } from "forge-std/console2.sol";
 import { UFixed32x4 } from "v5-liquidator/libraries/FixedMathLib.sol";
 import { UD2x18 } from "prb-math/UD2x18.sol";
 import { SD1x18 } from "prb-math/SD1x18.sol";
+import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
 import { TwabLib } from "v5-twab-controller/libraries/TwabLib.sol";
 
 import { Environment, PrizePoolConfig, LiquidatorConfig, ClaimerConfig, GasConfig } from "src/Environment.sol";
@@ -13,6 +14,7 @@ import { Environment, PrizePoolConfig, LiquidatorConfig, ClaimerConfig, GasConfi
 import { ClaimerAgent } from "src/ClaimerAgent.sol";
 import { DrawAgent } from "src/DrawAgent.sol";
 import { LiquidatorAgent } from "src/LiquidatorAgent.sol";
+import { ValuesOverTime } from "src/ValuesOverTime.sol";
 
 contract EthereumTest is Test {
   string runStatsOut = string.concat(vm.projectRoot(), "/data/simulation.csv");
@@ -20,7 +22,7 @@ contract EthereumTest is Test {
   uint32 drawPeriodSeconds = 1 days;
   uint32 grandPrizePeriodDraws = 365;
 
-  uint duration = 1 days + 0.5 days;
+  uint duration = 3 days + 0.5 days;
   uint timeStep = 60 minutes;
   uint startTime;
 
@@ -28,7 +30,7 @@ contract EthereumTest is Test {
   uint apr = 0.05e18;
   uint numUsers = 2;
 
-  uint exchangeRatePrizeTokenToUnderlyingFixedPoint18 = 1e18;
+  ValuesOverTime public exchangeRatePrizeTokenToUnderlying;
 
   PrizePoolConfig public prizePoolConfig;
   LiquidatorConfig public liquidatorConfig;
@@ -43,6 +45,9 @@ contract EthereumTest is Test {
   function setUp() public {
     startTime = block.timestamp + 400 days;
     vm.warp(startTime);
+
+    exchangeRatePrizeTokenToUnderlying = new ValuesOverTime();
+    exchangeRatePrizeTokenToUnderlying.add(startTime, wrap(1e18));
 
     console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
     console2.log("Draw Period (sec): ", drawPeriodSeconds);
@@ -130,7 +135,7 @@ contract EthereumTest is Test {
       // vm.writeLine(runStatsOut,string.concat(valuesPart1,valuesPart2));
       env.mintYield();
       claimerAgent.check();
-      liquidatorAgent.check(exchangeRatePrizeTokenToUnderlyingFixedPoint18);
+      liquidatorAgent.check(exchangeRatePrizeTokenToUnderlying.get(block.timestamp));
       drawAgent.check();
     }
 
