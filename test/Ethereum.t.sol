@@ -22,7 +22,7 @@ contract EthereumTest is Test {
   uint32 drawPeriodSeconds = 1 days;
   uint32 grandPrizePeriodDraws = 365;
 
-  uint duration = 40 days + 0.5 days;
+  uint duration = 10 days + 0.5 days;
   uint timeStep = 1 minutes;
   uint startTime;
 
@@ -48,15 +48,15 @@ contract EthereumTest is Test {
     exchangeRatePrizeTokenToUnderlying = new ValuesOverTime();
     // POOL/UNDERLYING = 0.000001
     exchangeRatePrizeTokenToUnderlying.add(startTime, wrap(1e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*3), wrap(1.5e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*9), wrap(2e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*15), wrap(4e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*25), wrap(3e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*30), wrap(1e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*35), wrap(5e17));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*45), wrap(1e17));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*60), wrap(5e16));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*65), wrap(1e16));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*2), wrap(1.5e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*4), wrap(2e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*6), wrap(4e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*8), wrap(3e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*10), wrap(1e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*12), wrap(5e17));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*14), wrap(1e17));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*16), wrap(5e16));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*18), wrap(1e16));
 
     console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
     console2.log("Draw Period (sec): ", drawPeriodSeconds);
@@ -110,7 +110,7 @@ contract EthereumTest is Test {
 
     env.initializeCgdaLiquidator(
       CgdaLiquidatorConfig({
-        decayConstant: wrap(0.001e18),
+        decayConstant: wrap(0.0002e18),
         exchangeRatePrizeTokenToUnderlying: exchangeRatePrizeTokenToUnderlying.get(startTime),
         periodLength: drawPeriodSeconds,
         periodOffset: uint32(startTime),
