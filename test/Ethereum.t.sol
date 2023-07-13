@@ -22,13 +22,13 @@ contract EthereumTest is Test {
   uint32 drawPeriodSeconds = 1 days;
   uint32 grandPrizePeriodDraws = 365;
 
-  uint duration = 3 days + 0.5 days;
-  uint timeStep = 60 minutes;
+  uint duration = 40 days + 0.5 days;
+  uint timeStep = 1 minutes;
   uint startTime;
 
-  uint totalValueLocked = 100_000_000e18;
+  uint totalValueLocked = 1_000_000e18;
   uint apr = 0.05e18;
-  uint numUsers = 2;
+  uint numUsers = 1;
 
   ValuesOverTime public exchangeRatePrizeTokenToUnderlying;
 
@@ -46,7 +46,17 @@ contract EthereumTest is Test {
     vm.warp(startTime);
 
     exchangeRatePrizeTokenToUnderlying = new ValuesOverTime();
+    // POOL/UNDERLYING = 0.000001
     exchangeRatePrizeTokenToUnderlying.add(startTime, wrap(1e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*3), wrap(1.5e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*9), wrap(2e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*15), wrap(4e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*25), wrap(3e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*30), wrap(1e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*35), wrap(5e17));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*45), wrap(1e17));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*60), wrap(5e16));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*65), wrap(1e16));
 
     console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
     console2.log("Draw Period (sec): ", drawPeriodSeconds);
@@ -103,7 +113,8 @@ contract EthereumTest is Test {
         decayConstant: wrap(0.001e18),
         exchangeRatePrizeTokenToUnderlying: exchangeRatePrizeTokenToUnderlying.get(startTime),
         periodLength: drawPeriodSeconds,
-        periodOffset: uint32(startTime)
+        periodOffset: uint32(startTime),
+        targetFirstSaleTime: 2 hours
       })
     );
 
@@ -112,7 +123,7 @@ contract EthereumTest is Test {
     drawAgent = new DrawAgent(env);
   }
 
-  function testSimulation() public noGasMetering {
+  function testEthereum() public noGasMetering {
     env.addUsers(numUsers, totalValueLocked / numUsers);
 
     env.setApr(apr);
@@ -206,8 +217,8 @@ contract EthereumTest is Test {
   }
 
   function printTotalClaimFees() public {
-    uint averageFeePerClaim = claimerAgent.totalFees() /
-      (claimerAgent.totalNormalPrizesClaimed() + claimerAgent.totalCanaryPrizesClaimed());
+    uint totalPrizes = claimerAgent.totalNormalPrizesClaimed() + claimerAgent.totalCanaryPrizesClaimed();
+    uint averageFeePerClaim = totalPrizes > 0 ? claimerAgent.totalFees() / totalPrizes : 0;
     console2.log("");
     console2.log("Average fee per claim (cents): ", averageFeePerClaim / 1e16);
   }

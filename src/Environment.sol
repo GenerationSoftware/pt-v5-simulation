@@ -45,6 +45,7 @@ struct CgdaLiquidatorConfig {
   SD59x18 exchangeRatePrizeTokenToUnderlying;
   uint32 periodLength;
   uint32 periodOffset;
+  uint32 targetFirstSaleTime;
 }
 
 struct LiquidatorConfig {
@@ -182,7 +183,7 @@ contract Environment is CommonBase, StdCheats {
       address(vault),
       _liquidatorConfig.periodLength,
       _liquidatorConfig.periodOffset,
-      _liquidatorConfig.periodLength / 8, // 24th of length
+      _liquidatorConfig.targetFirstSaleTime,
       _liquidatorConfig.decayConstant,
       _initialAmountIn,
       _initialAmountOut
