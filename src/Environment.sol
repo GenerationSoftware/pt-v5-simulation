@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.17;
 
+import "forge-std/console2.sol";
+
 import { Vault } from "v5-vault/Vault.sol";
 import { VaultFactory } from "v5-vault/VaultFactory.sol";
 import { ERC20PermitMock } from "v5-vault-test/contracts/mock/ERC20PermitMock.sol";
@@ -15,8 +17,14 @@ import { PrizePool, ConstructorParams } from "v5-prize-pool/PrizePool.sol";
 import { Claimer } from "v5-vrgda-claimer/Claimer.sol";
 import { UD2x18, intoUD60x18 } from "prb-math/UD2x18.sol";
 import { SD1x18, unwrap, UNIT } from "prb-math/SD1x18.sol";
+import { SD59x18, convert } from "prb-math/SD59x18.sol";
 import { CommonBase } from "forge-std/Base.sol";
 import { StdCheats } from "forge-std/StdCheats.sol";
+
+import { ILiquidationSource as CgdaILiquidationSource } from "v5-cgda-liquidator/interfaces/ILiquidationSource.sol";
+import { LiquidationPair as CgdaLiquidationPair } from "v5-cgda-liquidator/LiquidationPair.sol";
+import { LiquidationPairFactory as CgdaLiquidationPairFactory } from "v5-cgda-liquidator/LiquidationPairFactory.sol";
+import { LiquidationRouter as CgdaLiquidationRouter } from "v5-cgda-liquidator/LiquidationRouter.sol";
 
 import { YieldVaultMintRate } from "src/YieldVaultMintRate.sol";
 
@@ -30,6 +38,14 @@ struct PrizePoolConfig {
   uint8 reserveShares;
   UD2x18 claimExpansionThreshold;
   SD1x18 smoothing;
+}
+
+struct CgdaLiquidatorConfig {
+  SD59x18 decayConstant;
+  SD59x18 exchangeRatePrizeTokenToUnderlying;
+  uint32 periodLength;
+  uint32 periodOffset;
+  uint32 targetFirstSaleTime;
 }
 
 struct LiquidatorConfig {
@@ -67,19 +83,17 @@ contract Environment is CommonBase, StdCheats {
   PrizePool public prizePool;
   Claimer public claimer;
   DrawAuction public drawAuction;
-  LiquidationPairFactory public pairFactory;
   LiquidationRouter public router;
 
   address[] public users;
 
   GasConfig internal _gasConfig;
 
-  constructor(
+  function initialize(
     PrizePoolConfig memory _prizePoolConfig,
-    LiquidatorConfig memory _liquidatorConfig,
     ClaimerConfig memory _claimerConfig,
     GasConfig memory gasConfig_
-  ) {
+  ) public {
     _gasConfig = gasConfig_;
     prizeToken = new ERC20PermitMock("POOL");
     underlyingToken = new ERC20PermitMock("USDC");
@@ -107,9 +121,6 @@ contract Environment is CommonBase, StdCheats {
     prizePool = new PrizePool(params);
     vaultFactory = new VaultFactory();
 
-    pairFactory = new LiquidationPairFactory();
-    router = new LiquidationRouter(pairFactory);
-
     claimer = new Claimer(
       prizePool,
       _claimerConfig.minimumFee,
@@ -136,6 +147,11 @@ contract Environment is CommonBase, StdCheats {
         address(this)
       )
     );
+  }
+
+  function initializeVmmLiquidator(LiquidatorConfig memory _liquidatorConfig) external virtual {
+    LiquidationPairFactory pairFactory = new LiquidationPairFactory();
+    router = new LiquidationRouter(pairFactory);
     pair = pairFactory.createPair(
       ILiquidationSource(address(vault)),
       address(prizeToken),
@@ -146,6 +162,34 @@ contract Environment is CommonBase, StdCheats {
       _liquidatorConfig.virtualReserveOut,
       _liquidatorConfig.mink
     );
+    vault.setLiquidationPair(pair);
+  }
+
+  function initializeCgdaLiquidator(CgdaLiquidatorConfig memory _liquidatorConfig) external virtual {
+    CgdaLiquidationPairFactory pairFactory = new CgdaLiquidationPairFactory();
+    CgdaLiquidationRouter cgdaRouter = new CgdaLiquidationRouter(pairFactory);
+    
+    console2.log("initializeCgdaLiquidator _liquidatorConfig.exchangeRatePrizeTokenToUnderlying", _liquidatorConfig.exchangeRatePrizeTokenToUnderlying.unwrap());
+
+    uint112 _initialAmountIn = 1e18; // 1 POOL
+    uint112 _initialAmountOut = uint112(uint(convert(convert(int(uint(_initialAmountIn))).div(_liquidatorConfig.exchangeRatePrizeTokenToUnderlying))));
+
+    console2.log("initializeCgdaLiquidator _initialAmountIn", _initialAmountIn);
+    console2.log("initializeCgdaLiquidator _initialAmountOut", _initialAmountOut);
+
+    pair = LiquidationPair(address(pairFactory.createPair(
+      CgdaILiquidationSource(address(vault)),
+      address(prizeToken),
+      address(vault),
+      _liquidatorConfig.periodLength,
+      _liquidatorConfig.periodOffset,
+      _liquidatorConfig.targetFirstSaleTime,
+      _liquidatorConfig.decayConstant,
+      _initialAmountIn,
+      _initialAmountOut
+    )));
+    // force the cast
+    router = LiquidationRouter(address(cgdaRouter));
     vault.setLiquidationPair(pair);
   }
 

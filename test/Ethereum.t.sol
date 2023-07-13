@@ -9,7 +9,7 @@ import { SD1x18 } from "prb-math/SD1x18.sol";
 import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
 import { TwabLib } from "v5-twab-controller/libraries/TwabLib.sol";
 
-import { Environment, PrizePoolConfig, LiquidatorConfig, ClaimerConfig, GasConfig } from "src/Environment.sol";
+import { Environment, PrizePoolConfig, CgdaLiquidatorConfig, LiquidatorConfig, ClaimerConfig, GasConfig } from "src/Environment.sol";
 
 import { ClaimerAgent } from "src/ClaimerAgent.sol";
 import { DrawAgent } from "src/DrawAgent.sol";
@@ -22,18 +22,17 @@ contract EthereumTest is Test {
   uint32 drawPeriodSeconds = 1 days;
   uint32 grandPrizePeriodDraws = 365;
 
-  uint duration = 3 days + 0.5 days;
-  uint timeStep = 60 minutes;
+  uint duration = 10 days + 0.5 days;
+  uint timeStep = 1 minutes;
   uint startTime;
 
-  uint totalValueLocked = 100_000_000e18;
+  uint totalValueLocked = 1_000_000e18;
   uint apr = 0.05e18;
-  uint numUsers = 2;
+  uint numUsers = 1;
 
   ValuesOverTime public exchangeRatePrizeTokenToUnderlying;
 
   PrizePoolConfig public prizePoolConfig;
-  LiquidatorConfig public liquidatorConfig;
   ClaimerConfig public claimerConfig;
   GasConfig public gasConfig;
   Environment public env;
@@ -47,7 +46,17 @@ contract EthereumTest is Test {
     vm.warp(startTime);
 
     exchangeRatePrizeTokenToUnderlying = new ValuesOverTime();
+    // POOL/UNDERLYING = 0.000001
     exchangeRatePrizeTokenToUnderlying.add(startTime, wrap(1e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*2), wrap(1.5e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*4), wrap(2e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*6), wrap(4e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*8), wrap(3e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*10), wrap(1e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*12), wrap(5e17));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*14), wrap(1e17));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*16), wrap(5e16));
+    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*18), wrap(1e16));
 
     console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
     console2.log("Draw Period (sec): ", drawPeriodSeconds);
@@ -63,14 +72,6 @@ contract EthereumTest is Test {
       reserveShares: 20,
       claimExpansionThreshold: UD2x18.wrap(0.8e18),
       smoothing: SD1x18.wrap(0.3e18)
-    });
-
-    liquidatorConfig = LiquidatorConfig({
-      swapMultiplier: UFixed32x4.wrap(0.3e4),
-      liquidityFraction: UFixed32x4.wrap(0.1e4),
-      virtualReserveIn: 1000e18,
-      virtualReserveOut: 1000e18,
-      mink: 1000e18 * 1000e18
     });
 
     claimerConfig = ClaimerConfig({
@@ -94,14 +95,35 @@ contract EthereumTest is Test {
       gasUsagePerDispatchDraw: 250_000
     });
 
-    env = new Environment(prizePoolConfig, liquidatorConfig, claimerConfig, gasConfig);
+    env = new Environment();
+    env.initialize(prizePoolConfig, claimerConfig, gasConfig);
+
+    // env.initializeVmmLiquidator(
+    //   LiquidatorConfig({
+    //     swapMultiplier: UFixed32x4.wrap(0.3e4),
+    //     liquidityFraction: UFixed32x4.wrap(0.1e4),
+    //     virtualReserveIn: 1000e18,
+    //     virtualReserveOut: 1000e18,
+    //     mink: 1000e18 * 1000e18
+    //   })
+    // );
+
+    env.initializeCgdaLiquidator(
+      CgdaLiquidatorConfig({
+        decayConstant: wrap(0.0002e18),
+        exchangeRatePrizeTokenToUnderlying: exchangeRatePrizeTokenToUnderlying.get(startTime),
+        periodLength: drawPeriodSeconds,
+        periodOffset: uint32(startTime),
+        targetFirstSaleTime: 2 hours
+      })
+    );
 
     claimerAgent = new ClaimerAgent(env);
     liquidatorAgent = new LiquidatorAgent(env);
     drawAgent = new DrawAgent(env);
   }
 
-  function testSimulation() public noGasMetering {
+  function testEthereum() public noGasMetering {
     env.addUsers(numUsers, totalValueLocked / numUsers);
 
     env.setApr(apr);
@@ -195,8 +217,8 @@ contract EthereumTest is Test {
   }
 
   function printTotalClaimFees() public {
-    uint averageFeePerClaim = claimerAgent.totalFees() /
-      (claimerAgent.totalNormalPrizesClaimed() + claimerAgent.totalCanaryPrizesClaimed());
+    uint totalPrizes = claimerAgent.totalNormalPrizesClaimed() + claimerAgent.totalCanaryPrizesClaimed();
+    uint averageFeePerClaim = totalPrizes > 0 ? claimerAgent.totalFees() / totalPrizes : 0;
     console2.log("");
     console2.log("Average fee per claim (cents): ", averageFeePerClaim / 1e16);
   }
