@@ -20,7 +20,7 @@ contract EthereumTest is Test {
   uint32 drawPeriodSeconds = 1 days;
   uint32 grandPrizePeriodDraws = 365;
 
-  uint duration = 60 days + 0.5 days;
+  uint duration = 1 days + 0.5 days;
   uint timeStep = 60 minutes;
   uint startTime;
 
