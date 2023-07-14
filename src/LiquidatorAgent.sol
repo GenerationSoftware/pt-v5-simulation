@@ -3,9 +3,8 @@ pragma solidity 0.8.17;
 import "forge-std/console2.sol";
 
 import { Environment } from "src/Environment.sol";
-// import { LiquidationPair } from "v5-cgda-liquidator/LiquidationPair.sol";
+import { SD59x18, wrap, convert, uMAX_SD59x18 } from "prb-math/SD59x18.sol";
 import { LiquidationPair } from "v5-liquidator/LiquidationPair.sol";
-import { SD59x18, wrap, convert } from "prb-math/SD59x18.sol";
 
 contract LiquidatorAgent {
   Environment public env;
@@ -27,6 +26,7 @@ contract LiquidatorAgent {
 
     uint amountOut = maxAmountOut;
     uint amountIn = env.pair().computeExactAmountIn(amountOut);
+    // console2.log("amountOut %s costs %s", amountOut, amountIn);
     uint profit;
 
     uint amountOutInPrizeTokens = uint(
@@ -39,11 +39,15 @@ contract LiquidatorAgent {
 
     if (profit > gasCostInPrizeTokens) {
       env.prizeToken().mint(address(this), amountIn);
+
+      // console2.log("Swapping for amountOut: %s", amountOut);
+
       env.router().swapExactAmountOut(
         LiquidationPair(address(env.pair())),
         address(this),
         amountOut,
-        type(uint).max
+        uint(uMAX_SD59x18 / 1e18) // NOTE: uMAX_SD59x18/1e18 for DaLiquidator
+        // type(uint).max // NOTE: type(uint).max for CgdaLiquidator
       );
 
       totalApproxProfit += profit;
@@ -55,15 +59,26 @@ contract LiquidatorAgent {
       uint efficiencyPercent = uint(convert(efficiency.mul(convert(100))));
 
       uint elapsedSinceDrawEnded = block.timestamp - env.prizePool().lastClosedDrawEndedAt();
-      console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ @ ", elapsedSinceDrawEnded);
+      // NOTE: Percentage calc is hardcoded to 1 day.
       console2.log(
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ LiquidatorAgent swapped POOL for Yield; efficiency",
-        amountIn,
-        amountOut,
-        efficiencyPercent
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ @ %s (%s%)",
+        elapsedSinceDrawEnded,
+        (elapsedSinceDrawEnded * 100) / 1 days
       );
       console2.log(
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tRemaining yield",
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ LiquidatorAgent swapped POOL for Yield"
+      );
+      console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tEfficiency\t", efficiencyPercent);
+      console2.log(
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tTarget ER\t",
+        SD59x18.unwrap(LiquidationPair(address(env.pair())).targetExchangeRate())
+      );
+      console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tAvailability\t", maxAmountOut);
+      console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tIn\t\t", amountIn);
+      console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tOut\t\t", amountOut);
+      console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tProfit\t\t", profit);
+      console2.log(
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tRemaining yield\t",
         env.pair().maxAmountOut()
       );
       // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tGas cost", gasCostInPrizeTokens / 1e18);

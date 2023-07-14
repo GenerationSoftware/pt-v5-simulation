@@ -13,14 +13,15 @@ import { VaultFactory } from "v5-vault/VaultFactory.sol";
 import { ERC20PermitMock } from "v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 import { DrawAuction } from "v5-draw-beacon/DrawAuction.sol";
 import { TwabController } from "v5-twab-controller/TwabController.sol";
-import { LiquidationPair, ILiquidationSource } from "v5-liquidator/LiquidationPair.sol";
-import { LiquidationPairFactory } from "v5-liquidator/LiquidationPairFactory.sol";
-import { LiquidationRouter } from "v5-liquidator/LiquidationRouter.sol";
-import { UFixed32x4 } from "v5-liquidator/libraries/FixedMathLib.sol";
 import { PrizePool, ConstructorParams } from "v5-prize-pool/PrizePool.sol";
 import { Claimer } from "v5-vrgda-claimer/Claimer.sol";
 
+import { ILiquidationSource } from "v5-liquidator-interfaces/ILiquidationSource.sol";
 import { ILiquidationPair } from "v5-liquidator-interfaces/ILiquidationPair.sol";
+
+import { LiquidationPair } from "v5-liquidator/LiquidationPair.sol";
+import { LiquidationPairFactory } from "v5-liquidator/LiquidationPairFactory.sol";
+import { LiquidationRouter } from "v5-liquidator/LiquidationRouter.sol";
 
 import { ILiquidationSource as CgdaILiquidationSource } from "v5-cgda-liquidator/interfaces/ILiquidationSource.sol";
 import { LiquidationPair as CgdaLiquidationPair } from "v5-cgda-liquidator/LiquidationPair.sol";
@@ -49,12 +50,10 @@ struct CgdaLiquidatorConfig {
   uint32 targetFirstSaleTime;
 }
 
-struct LiquidatorConfig {
-  UFixed32x4 swapMultiplier;
-  UFixed32x4 liquidityFraction;
-  uint128 virtualReserveIn;
-  uint128 virtualReserveOut;
-  uint256 mink;
+struct DaLiquidatorConfig {
+  SD59x18 initialTargetExchangeRate;
+  SD59x18 phaseTwoDurationPercent;
+  SD59x18 phaseTwoRangePercent;
 }
 
 struct ClaimerConfig {
@@ -150,20 +149,31 @@ contract Environment is CommonBase, StdCheats {
     );
   }
 
-  function initializeVmmLiquidator(LiquidatorConfig memory _liquidatorConfig) external virtual {
-    LiquidationPairFactory pairFactory = new LiquidationPairFactory();
+  function initializeDaLiquidator(
+    DaLiquidatorConfig memory _liquidatorConfig,
+    PrizePoolConfig memory _prizePoolConfig
+  ) external virtual {
+    LiquidationPairFactory pairFactory = new LiquidationPairFactory(
+      _prizePoolConfig.drawPeriodSeconds,
+      uint32(_prizePoolConfig.firstDrawStartsAt)
+    );
     router = new LiquidationRouter(pairFactory);
+
+    console2.log("~~~ Initialize DaLiquidator ~~~");
+    console2.log("Target Exchange Rate", _liquidatorConfig.initialTargetExchangeRate.unwrap());
+    console2.log("Phase Two Duration Percent", convert(_liquidatorConfig.phaseTwoDurationPercent));
+    console2.log("Phase Two Range Percent", convert(_liquidatorConfig.phaseTwoRangePercent));
+    console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+
     pair = ILiquidationPair(
       address(
         pairFactory.createPair(
           ILiquidationSource(address(vault)),
           address(prizeToken),
           address(vault),
-          _liquidatorConfig.swapMultiplier,
-          _liquidatorConfig.liquidityFraction,
-          _liquidatorConfig.virtualReserveIn,
-          _liquidatorConfig.virtualReserveOut,
-          _liquidatorConfig.mink
+          _liquidatorConfig.initialTargetExchangeRate,
+          _liquidatorConfig.phaseTwoDurationPercent,
+          _liquidatorConfig.phaseTwoRangePercent
         )
       )
     );

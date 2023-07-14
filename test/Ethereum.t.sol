@@ -3,13 +3,12 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 import { console2 } from "forge-std/console2.sol";
-import { UFixed32x4 } from "v5-liquidator/libraries/FixedMathLib.sol";
 import { UD2x18 } from "prb-math/UD2x18.sol";
 import { SD1x18 } from "prb-math/SD1x18.sol";
 import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
 import { TwabLib } from "v5-twab-controller/libraries/TwabLib.sol";
 
-import { Environment, PrizePoolConfig, CgdaLiquidatorConfig, LiquidatorConfig, ClaimerConfig, GasConfig } from "src/Environment.sol";
+import { Environment, PrizePoolConfig, CgdaLiquidatorConfig, DaLiquidatorConfig, ClaimerConfig, GasConfig } from "src/Environment.sol";
 
 import { ClaimerAgent } from "src/ClaimerAgent.sol";
 import { DrawAgent } from "src/DrawAgent.sol";
@@ -48,15 +47,15 @@ contract EthereumTest is Test {
     exchangeRatePrizeTokenToUnderlying = new ValuesOverTime();
     // POOL/UNDERLYING = 0.000001
     exchangeRatePrizeTokenToUnderlying.add(startTime, wrap(1e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*2), wrap(1.5e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*4), wrap(2e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*6), wrap(4e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*8), wrap(3e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*10), wrap(1e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*12), wrap(5e17));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*14), wrap(1e17));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*16), wrap(5e16));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*18), wrap(1e16));
+    exchangeRatePrizeTokenToUnderlying.add(startTime + (drawPeriodSeconds * 2), wrap(1.5e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime + (drawPeriodSeconds * 4), wrap(2e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime + (drawPeriodSeconds * 6), wrap(4e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime + (drawPeriodSeconds * 8), wrap(3e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime + (drawPeriodSeconds * 10), wrap(1e18));
+    exchangeRatePrizeTokenToUnderlying.add(startTime + (drawPeriodSeconds * 12), wrap(5e17));
+    exchangeRatePrizeTokenToUnderlying.add(startTime + (drawPeriodSeconds * 14), wrap(1e17));
+    exchangeRatePrizeTokenToUnderlying.add(startTime + (drawPeriodSeconds * 16), wrap(5e16));
+    exchangeRatePrizeTokenToUnderlying.add(startTime + (drawPeriodSeconds * 18), wrap(1e16));
 
     console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
     console2.log("Draw Period (sec): ", drawPeriodSeconds);
@@ -98,25 +97,29 @@ contract EthereumTest is Test {
     env = new Environment();
     env.initialize(prizePoolConfig, claimerConfig, gasConfig);
 
-    // env.initializeVmmLiquidator(
-    //   LiquidatorConfig({
-    //     swapMultiplier: UFixed32x4.wrap(0.3e4),
-    //     liquidityFraction: UFixed32x4.wrap(0.1e4),
-    //     virtualReserveIn: 1000e18,
-    //     virtualReserveOut: 1000e18,
-    //     mink: 1000e18 * 1000e18
+    ///////////////// Liquidator /////////////////
+    // Initialize one of the liquidators. Comment the other out.
+
+    env.initializeDaLiquidator(
+      DaLiquidatorConfig({
+        initialTargetExchangeRate: exchangeRatePrizeTokenToUnderlying.get(startTime),
+        phaseTwoDurationPercent: convert(10),
+        phaseTwoRangePercent: convert(10)
+      }),
+      prizePoolConfig
+    );
+
+    // env.initializeCgdaLiquidator(
+    //   CgdaLiquidatorConfig({
+    //     decayConstant: wrap(0.0002e18),
+    //     exchangeRatePrizeTokenToUnderlying: exchangeRatePrizeTokenToUnderlying.get(startTime),
+    //     periodLength: drawPeriodSeconds,
+    //     periodOffset: uint32(startTime),
+    //     targetFirstSaleTime: 2 hours
     //   })
     // );
 
-    env.initializeCgdaLiquidator(
-      CgdaLiquidatorConfig({
-        decayConstant: wrap(0.0002e18),
-        exchangeRatePrizeTokenToUnderlying: exchangeRatePrizeTokenToUnderlying.get(startTime),
-        periodLength: drawPeriodSeconds,
-        periodOffset: uint32(startTime),
-        targetFirstSaleTime: 2 hours
-      })
-    );
+    //////////////////////////////////////////////
 
     claimerAgent = new ClaimerAgent(env);
     liquidatorAgent = new LiquidatorAgent(env);
@@ -155,6 +158,7 @@ contract EthereumTest is Test {
       //     vm.toString(prizePoolReserve / 1e18)
       // );
       // vm.writeLine(runStatsOut,string.concat(valuesPart1,valuesPart2));
+      // console2.log("----- TIME: %s", block.timestamp);
       env.mintYield();
       claimerAgent.check();
       liquidatorAgent.check(exchangeRatePrizeTokenToUnderlying.get(block.timestamp));
@@ -217,7 +221,8 @@ contract EthereumTest is Test {
   }
 
   function printTotalClaimFees() public {
-    uint totalPrizes = claimerAgent.totalNormalPrizesClaimed() + claimerAgent.totalCanaryPrizesClaimed();
+    uint totalPrizes = claimerAgent.totalNormalPrizesClaimed() +
+      claimerAgent.totalCanaryPrizesClaimed();
     uint averageFeePerClaim = totalPrizes > 0 ? claimerAgent.totalFees() / totalPrizes : 0;
     console2.log("");
     console2.log("Average fee per claim (cents): ", averageFeePerClaim / 1e16);
