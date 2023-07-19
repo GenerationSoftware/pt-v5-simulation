@@ -14,5 +14,9 @@ node_modules
 
 .history
 
-# Ignore test data outputs
-data/
+data/liquidatorOut.csv
+data/claimerOut.csv
+data/simulatorOut.csv
+data/liquidatorOut.json
+data/claimerOut.json
+data/simulatorOut.json
