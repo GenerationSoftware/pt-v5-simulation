@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.17;
 
-import "forge-std/Test.sol";
 import { console2 } from "forge-std/console2.sol";
+import { SimulatorTest } from "src/SimulatorTest.sol";
 
 import { UD2x18 } from "prb-math/UD2x18.sol";
 import { SD1x18 } from "prb-math/SD1x18.sol";
@@ -17,7 +17,7 @@ import { LiquidatorAgent } from "src/LiquidatorAgent.sol";
 import { SD59x18OverTime } from "src/SD59x18OverTime.sol";
 import { UintOverTime } from "src/UintOverTime.sol";
 
-contract EthereumTest is Test {
+contract EthereumTest is SimulatorTest {
   string simulatorCsv;
 
   uint32 drawPeriodSeconds = 1 days;
@@ -133,7 +133,7 @@ contract EthereumTest is Test {
   function setUpExchangeRateFromJson() public {
     exchangeRateOverTime = new SD59x18OverTime();
 
-    string memory jsonFile = string.concat(vm.projectRoot(), "/data/historicPrices.json");
+    string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicPrices.json");
     string memory jsonData = vm.readFile(jsonFile);
     // NOTE: Options for exchange rate are: .usd or .eth
     bytes memory usdData = vm.parseJson(jsonData, "$.usd");
@@ -194,7 +194,7 @@ contract EthereumTest is Test {
   function setUpAprFromJson() public {
     aprOverTime = new UintOverTime();
 
-    string memory jsonFile = string.concat(vm.projectRoot(), "/data/historicAaveApr.json");
+    string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicAaveApr.json");
     string memory jsonData = vm.readFile(jsonFile);
     // NOTE: Options for APR are: .usd or .eth
     bytes memory usdData = vm.parseJson(jsonData, "$.usd");
@@ -209,7 +209,7 @@ contract EthereumTest is Test {
     }
   }
 
-  function testEthereum() public noGasMetering {
+  function testEthereum() public noGasMetering recordEvents {
     env.addUsers(numUsers, totalValueLocked / numUsers);
 
     env.setApr(aprOverTime.get(startTime));

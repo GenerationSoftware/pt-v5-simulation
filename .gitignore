@@ -14,9 +14,4 @@ node_modules
 
 .history
 
-data/liquidatorOut.csv
-data/claimerOut.csv
-data/simulatorOut.csv
-data/liquidatorOut.json
-data/claimerOut.json
-data/simulatorOut.json
+data/*

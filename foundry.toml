@@ -4,8 +4,9 @@ out = 'out'
 test = 'test'
 libs = ['lib']
 solc = "0.8.17"
-fs_permissions = [{ access = "read", path = "./broadcast"},{ access = "read-write", path = "./data" }]
+fs_permissions = [{ access = "read", path = "./broadcast"},{ access = "read-write", path = "./data" },{ access = "read", path = "./config" }]
 gas_reports = ["*"]
+memory_limit = 1000000000 # 1 GB
 
 [rpc_endpoints]
 mainnet = "${MAINNET_RPC_URL}"
