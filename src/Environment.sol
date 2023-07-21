@@ -11,10 +11,13 @@ import { SD59x18, convert } from "prb-math/SD59x18.sol";
 import { Vault } from "v5-vault/Vault.sol";
 import { VaultFactory } from "v5-vault/VaultFactory.sol";
 import { ERC20PermitMock } from "v5-vault-test/contracts/mock/ERC20PermitMock.sol";
-import { DrawAuction } from "v5-draw-beacon/DrawAuction.sol";
 import { TwabController } from "v5-twab-controller/TwabController.sol";
 import { PrizePool, ConstructorParams } from "v5-prize-pool/PrizePool.sol";
 import { Claimer } from "v5-vrgda-claimer/Claimer.sol";
+
+import { RngAuction } from "v5-draw-auction/RngAuction.sol";
+import { DrawManager } from "v5-draw-auction/DrawManager.sol";
+import { DrawAuctionDirect } from "v5-draw-auction/DrawAuctionDirect.sol";
 
 import { ILiquidationSource } from "v5-liquidator-interfaces/ILiquidationSource.sol";
 import { ILiquidationPair } from "v5-liquidator-interfaces/ILiquidationPair.sol";

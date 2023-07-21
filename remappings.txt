@@ -5,7 +5,7 @@ prb-math/=lib/pt-v5-prize-pool/lib/prb-math/src/
 
 src/=src/
 
-v5-draw-beacon/=lib/pt-v5-draw-auction/src/
+v5-draw-auction/=lib/pt-v5-draw-auction/src/
 
 v5-liquidator-interfaces/=lib/pt-v5-liquidator-interfaces/src/interfaces/
 v5-liquidator/=lib/pt-v5-liquidator/src/
