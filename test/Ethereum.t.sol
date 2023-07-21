@@ -9,7 +9,7 @@ import { SD1x18 } from "prb-math/SD1x18.sol";
 import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
 import { TwabLib } from "v5-twab-controller/libraries/TwabLib.sol";
 
-import { Environment, PrizePoolConfig, CgdaLiquidatorConfig, DaLiquidatorConfig, ClaimerConfig, GasConfig } from "src/Environment.sol";
+import { Environment, PrizePoolConfig, CgdaLiquidatorConfig, DaLiquidatorConfig, ClaimerConfig, GasConfig, AuctionConfig } from "src/Environment.sol";
 
 import { ClaimerAgent } from "src/ClaimerAgent.sol";
 import { DrawAgent } from "src/DrawAgent.sol";
@@ -36,6 +36,8 @@ contract EthereumTest is SimulatorTest {
 
   PrizePoolConfig public prizePoolConfig;
   ClaimerConfig public claimerConfig;
+  AuctionConfig public rngAuctionConfig;
+  AuctionConfig public drawAuctionConfig;
   GasConfig public gasConfig;
   Environment public env;
 
@@ -78,6 +80,14 @@ contract EthereumTest is SimulatorTest {
       maxFeePortionOfPrize: UD2x18.wrap(0.2e18)
     });
 
+    rngAuctionConfig = AuctionConfig({
+      auctionDurationSeconds: drawPeriodSeconds / 8
+    });
+
+    drawAuctionConfig = AuctionConfig({
+      auctionDurationSeconds: drawPeriodSeconds / 8
+    });
+
     // gas price is currently 50 gwei of ether.
     // ether is worth 1800 POOL
     // 50 * 1800 = 90000 POOL
@@ -93,7 +103,7 @@ contract EthereumTest is SimulatorTest {
     });
 
     env = new Environment();
-    env.initialize(prizePoolConfig, claimerConfig, gasConfig);
+    env.initialize(prizePoolConfig, claimerConfig, gasConfig, rngAuctionConfig, drawAuctionConfig);
 
     ///////////////// Liquidator /////////////////
     // Initialize one of the liquidators. Comment the other out.
@@ -218,6 +228,7 @@ contract EthereumTest is SimulatorTest {
 
     for (uint i = startTime; i < startTime + duration; i += timeStep) {
       vm.warp(i);
+      vm.roll(1 + i / 15);
 
       // Cache data at beginning of tick
       uint availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));

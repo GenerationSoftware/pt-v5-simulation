@@ -18,6 +18,8 @@ import { Claimer } from "v5-vrgda-claimer/Claimer.sol";
 import { RngAuction } from "v5-draw-auction/RngAuction.sol";
 import { DrawManager } from "v5-draw-auction/DrawManager.sol";
 import { DrawAuctionDirect } from "v5-draw-auction/DrawAuctionDirect.sol";
+import { RNGBlockhash } from "rng-contracts/RNGBlockhash.sol";
+import { RNGInterface } from "rng-contracts/RNGInterface.sol"; 
 
 import { ILiquidationSource } from "v5-liquidator-interfaces/ILiquidationSource.sol";
 import { ILiquidationPair } from "v5-liquidator-interfaces/ILiquidationPair.sol";
@@ -66,6 +68,10 @@ struct ClaimerConfig {
   UD2x18 maxFeePortionOfPrize;
 }
 
+struct AuctionConfig {
+  uint64 auctionDurationSeconds;
+}
+
 struct GasConfig {
   uint256 gasPriceInPrizeTokens;
   uint256 gasUsagePerClaim;
@@ -85,7 +91,10 @@ contract Environment is CommonBase, StdCheats {
   ILiquidationPair public pair;
   PrizePool public prizePool;
   Claimer public claimer;
-  DrawAuction public drawAuction;
+  RNGInterface public rng;
+  RngAuction public rngAuction;
+  DrawAuctionDirect public drawAuction;
+  DrawManager public drawManager;
   LiquidationRouter public router;
 
   address[] public users;
@@ -95,7 +104,9 @@ contract Environment is CommonBase, StdCheats {
   function initialize(
     PrizePoolConfig memory _prizePoolConfig,
     ClaimerConfig memory _claimerConfig,
-    GasConfig memory gasConfig_
+    GasConfig memory gasConfig_,
+    AuctionConfig memory _rngAuctionConfig,
+    AuctionConfig memory _drawAuctionConfig
   ) public {
     _gasConfig = gasConfig_;
     prizeToken = new ERC20PermitMock("POOL");
@@ -132,9 +143,19 @@ contract Environment is CommonBase, StdCheats {
       _claimerConfig.maxFeePortionOfPrize
     );
 
-    drawAuction = new DrawAuction(prizePool, _prizePoolConfig.drawPeriodSeconds / 8);
+    rng = new RNGBlockhash();
+    rngAuction = new RngAuction(
+      rng,
+      address(this),
+      _prizePoolConfig.drawPeriodSeconds,
+      _prizePoolConfig.firstDrawStartsAt,
+      _rngAuctionConfig.auctionDurationSeconds
+    );
+    drawManager = new DrawManager(prizePool, address(this), address(0));
+    drawAuction = new DrawAuctionDirect(drawManager, rngAuction, _drawAuctionConfig.auctionDurationSeconds);
+    drawManager.grantRole(drawManager.DRAW_CLOSER_ROLE(), address(drawAuction));
 
-    prizePool.setDrawManager(address(drawAuction));
+    prizePool.setDrawManager(address(drawManager));
 
     vault = Vault(
       vaultFactory.deployVault(
