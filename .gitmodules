@@ -16,8 +16,8 @@
 	url = https://github.com/generationsoftware/pt-v5-claimer
 [submodule "lib/pt-v5-draw-auction"]
 	path = lib/pt-v5-draw-auction
-	url = https://github.com/generationsoftware/pt-v5-draw-auction
-	branch = temp-for-simulator
+	url = https://github.com/GenerationSoftware/pt-v5-draw-auction
+	branch = trevor/gen-99-draw-auction-multiuse-rng
 [submodule "lib/pt-v5-twab-controller"]
 	path = lib/pt-v5-twab-controller
 	url = https://github.com/generationsoftware/pt-v5-twab-controller
