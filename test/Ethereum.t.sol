@@ -81,11 +81,13 @@ contract EthereumTest is SimulatorTest {
     });
 
     rngAuctionConfig = AuctionConfig({
-      auctionDurationSeconds: drawPeriodSeconds / 8
+      auctionDurationSeconds: drawPeriodSeconds / 4,
+      auctionTargetTime: drawPeriodSeconds / 16 // 0.25 of duration
     });
 
     drawAuctionConfig = AuctionConfig({
-      auctionDurationSeconds: drawPeriodSeconds / 8
+      auctionDurationSeconds: drawPeriodSeconds / 6,
+      auctionTargetTime: drawPeriodSeconds / 24 // 0.25 of duration
     });
 
     // gas price is currently 50 gwei of ether.
@@ -99,11 +101,13 @@ contract EthereumTest is SimulatorTest {
       gasUsagePerLiquidation: 500_000,
       gasUsagePerStartDraw: 152_473,
       gasUsagePerCompleteDraw: 66_810,
-      gasUsagePerDispatchDraw: 250_000
+      gasUsagePerDispatchDraw: 250_000,
+      gasUsagePerChainlinkRequest: 230_000 // Gas for tx as well as gas used by vrf provider
     });
 
+    bool outputDataLogs = true;
     env = new Environment();
-    env.initialize(prizePoolConfig, claimerConfig, gasConfig, rngAuctionConfig, drawAuctionConfig);
+    env.initialize(outputDataLogs, prizePoolConfig, claimerConfig, gasConfig, rngAuctionConfig, drawAuctionConfig);
 
     ///////////////// Liquidator /////////////////
     // Initialize one of the liquidators. Comment the other out.
@@ -263,18 +267,20 @@ contract EthereumTest is SimulatorTest {
       drawAgent.check();
 
       // Log data
-      logToCsv(
-        SimulatorLog({
-          drawId: env.prizePool().getLastClosedDrawId(),
-          timestamp: block.timestamp,
-          availableYield: availableYield,
-          availableVaultShares: availableVaultShares,
-          requiredPrizeTokens: requiredPrizeTokens,
-          prizePoolReserve: prizePoolReserve,
-          apr: aprOverTime.get(i),
-          tvl: totalValueLocked
-        })
-      );
+      if (env.outputDataLogs()) {
+        logToCsv(
+          SimulatorLog({
+            drawId: env.prizePool().getLastClosedDrawId(),
+            timestamp: block.timestamp,
+            availableYield: availableYield,
+            availableVaultShares: availableVaultShares,
+            requiredPrizeTokens: requiredPrizeTokens,
+            prizePoolReserve: prizePoolReserve,
+            apr: aprOverTime.get(i),
+            tvl: totalValueLocked
+          })
+        );
+      }
     }
 
     printDraws();

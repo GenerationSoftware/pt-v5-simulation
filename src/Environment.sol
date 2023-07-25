@@ -70,6 +70,7 @@ struct ClaimerConfig {
 
 struct AuctionConfig {
   uint64 auctionDurationSeconds;
+  uint64 auctionTargetTime;
 }
 
 struct GasConfig {
@@ -79,47 +80,59 @@ struct GasConfig {
   uint256 gasUsagePerStartDraw;
   uint256 gasUsagePerCompleteDraw;
   uint256 gasUsagePerDispatchDraw;
+  uint256 gasUsagePerChainlinkRequest;
+}
+
+struct Contracts {
+  ERC20PermitMock prizeToken;
+  ERC20PermitMock underlyingToken;
+  TwabController twab;
+  VaultFactory vaultFactory;
+  Vault vault;
+  YieldVaultMintRate yieldVault;
+  ILiquidationPair pair;
+  PrizePool prizePool;
+  Claimer claimer;
+  RNGInterface rng;
+  RngAuction rngAuction;
+  DrawAuctionDirect drawAuction;
+  DrawManager drawManager;
+  LiquidationRouter router;
 }
 
 contract Environment is CommonBase, StdCheats {
-  ERC20PermitMock public prizeToken;
-  ERC20PermitMock public underlyingToken;
-  TwabController public twab;
-  VaultFactory public vaultFactory;
-  Vault public vault;
-  YieldVaultMintRate public yieldVault;
-  ILiquidationPair public pair;
-  PrizePool public prizePool;
-  Claimer public claimer;
-  RNGInterface public rng;
-  RngAuction public rngAuction;
-  DrawAuctionDirect public drawAuction;
-  DrawManager public drawManager;
-  LiquidationRouter public router;
+  
+  Contracts public contracts;
 
   address[] public users;
 
   GasConfig internal _gasConfig;
 
+  bool public outputDataLogs;
+
   function initialize(
+    bool outputDataLogs_,
     PrizePoolConfig memory _prizePoolConfig,
     ClaimerConfig memory _claimerConfig,
     GasConfig memory gasConfig_,
     AuctionConfig memory _rngAuctionConfig,
     AuctionConfig memory _drawAuctionConfig
   ) public {
+
+    outputDataLogs = outputDataLogs_;
     _gasConfig = gasConfig_;
-    prizeToken = new ERC20PermitMock("POOL");
-    underlyingToken = new ERC20PermitMock("USDC");
-    yieldVault = new YieldVaultMintRate(underlyingToken, "Yearnish yUSDC", "yUSDC", address(this));
-    twab = new TwabController(
+
+    contracts.prizeToken = new ERC20PermitMock("POOL");
+    contracts.underlyingToken = new ERC20PermitMock("USDC");
+    contracts.yieldVault = new YieldVaultMintRate(contracts.underlyingToken, "Yearnish yUSDC", "yUSDC", address(this));
+    contracts.twab = new TwabController(
       _prizePoolConfig.drawPeriodSeconds,
       uint32(_prizePoolConfig.firstDrawStartsAt)
     );
 
     ConstructorParams memory params = ConstructorParams({
-      prizeToken: prizeToken,
-      twabController: twab,
+      prizeToken: contracts.prizeToken,
+      twabController: contracts.twab,
       drawManager: address(0),
       //   grandPrizePeriodDraws: _prizePoolConfig.grandPrizePeriodDraws,
       drawPeriodSeconds: _prizePoolConfig.drawPeriodSeconds,
@@ -132,40 +145,39 @@ contract Environment is CommonBase, StdCheats {
       smoothing: _prizePoolConfig.smoothing
     });
 
-    prizePool = new PrizePool(params);
-    vaultFactory = new VaultFactory();
-
-    claimer = new Claimer(
-      prizePool,
+    contracts.prizePool = new PrizePool(params);
+    contracts.vaultFactory = new VaultFactory();
+    contracts.claimer = new Claimer(
+      contracts.prizePool,
       _claimerConfig.minimumFee,
       _claimerConfig.maximumFee,
       _claimerConfig.timeToReachMaxFee,
       _claimerConfig.maxFeePortionOfPrize
     );
 
-    rng = new RNGBlockhash();
-    rngAuction = new RngAuction(
-      rng,
+    contracts.rng = new RNGBlockhash();
+    contracts.rngAuction = new RngAuction(
+      contracts.rng,
       address(this),
       _prizePoolConfig.drawPeriodSeconds,
       _prizePoolConfig.firstDrawStartsAt,
-      _rngAuctionConfig.auctionDurationSeconds
+      _rngAuctionConfig.auctionDurationSeconds,
+      _rngAuctionConfig.auctionTargetTime
     );
-    drawManager = new DrawManager(prizePool, address(this), address(0));
-    drawAuction = new DrawAuctionDirect(drawManager, rngAuction, _drawAuctionConfig.auctionDurationSeconds);
-    drawManager.grantRole(drawManager.DRAW_CLOSER_ROLE(), address(drawAuction));
+    contracts.drawManager = new DrawManager(contracts.prizePool, address(this), address(0));
+    contracts.drawAuction = new DrawAuctionDirect(contracts.drawManager, contracts.rngAuction, _drawAuctionConfig.auctionDurationSeconds, _drawAuctionConfig.auctionTargetTime);
+    contracts.drawManager.grantRole(contracts.drawManager.DRAW_CLOSER_ROLE(), address(contracts.drawAuction));
+    contracts.prizePool.setDrawManager(address(contracts.drawManager));
 
-    prizePool.setDrawManager(address(drawManager));
-
-    vault = Vault(
-      vaultFactory.deployVault(
-        underlyingToken,
+    contracts.vault = Vault(
+      contracts.vaultFactory.deployVault(
+        contracts.underlyingToken,
         "PoolTogether Prize USDC",
         "pzUSDC",
-        twab,
-        yieldVault,
-        prizePool,
-        address(claimer),
+        contracts.twab,
+        contracts.yieldVault,
+        contracts.prizePool,
+        address(contracts.claimer),
         address(0),
         0,
         address(this)
@@ -181,7 +193,7 @@ contract Environment is CommonBase, StdCheats {
       _prizePoolConfig.drawPeriodSeconds,
       uint32(_prizePoolConfig.firstDrawStartsAt)
     );
-    router = new LiquidationRouter(pairFactory);
+    contracts.router = new LiquidationRouter(pairFactory);
 
     console2.log("~~~ Initialize DaLiquidator ~~~");
     console2.log("Target Exchange Rate", _liquidatorConfig.initialTargetExchangeRate.unwrap());
@@ -189,19 +201,19 @@ contract Environment is CommonBase, StdCheats {
     console2.log("Phase Two Range Percent", convert(_liquidatorConfig.phaseTwoRangePercent));
     console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 
-    pair = ILiquidationPair(
+    contracts.pair = ILiquidationPair(
       address(
         pairFactory.createPair(
-          ILiquidationSource(address(vault)),
-          address(prizeToken),
-          address(vault),
+          ILiquidationSource(address(contracts.vault)),
+          address(contracts.prizeToken),
+          address(contracts.vault),
           _liquidatorConfig.initialTargetExchangeRate,
           _liquidatorConfig.phaseTwoDurationPercent,
           _liquidatorConfig.phaseTwoRangePercent
         )
       )
     );
-    vault.setLiquidationPair(LiquidationPair(address(pair)));
+    contracts.vault.setLiquidationPair(LiquidationPair(address(contracts.pair)));
   }
 
   function initializeCgdaLiquidator(
@@ -229,12 +241,12 @@ contract Environment is CommonBase, StdCheats {
     console2.log("initializeCgdaLiquidator _initialAmountIn", _initialAmountIn);
     console2.log("initializeCgdaLiquidator _initialAmountOut", _initialAmountOut);
 
-    pair = ILiquidationPair(
+    contracts.pair = ILiquidationPair(
       address(
         pairFactory.createPair(
-          CgdaILiquidationSource(address(vault)),
-          address(prizeToken),
-          address(vault),
+          CgdaILiquidationSource(address(contracts.vault)),
+          address(contracts.prizeToken),
+          address(contracts.vault),
           _liquidatorConfig.periodLength,
           _liquidatorConfig.periodOffset,
           _liquidatorConfig.targetFirstSaleTime,
@@ -245,17 +257,17 @@ contract Environment is CommonBase, StdCheats {
       )
     );
     // force the cast
-    router = LiquidationRouter(address(cgdaRouter));
-    vault.setLiquidationPair(LiquidationPair(address(pair)));
+    contracts.router = LiquidationRouter(address(cgdaRouter));
+    contracts.vault.setLiquidationPair(LiquidationPair(address(contracts.pair)));
   }
 
   function addUsers(uint count, uint depositSize) external {
     for (uint i = 0; i < count; i++) {
       address user = makeAddr(string.concat("user", string(abi.encode(i))));
       vm.startPrank(user);
-      underlyingToken.mint(user, depositSize);
-      underlyingToken.approve(address(vault), depositSize);
-      vault.deposit(depositSize, user);
+      contracts.underlyingToken.mint(user, depositSize);
+      contracts.underlyingToken.approve(address(contracts.vault), depositSize);
+      contracts.vault.deposit(depositSize, user);
       vm.stopPrank();
       users.push(user);
     }
@@ -270,11 +282,28 @@ contract Environment is CommonBase, StdCheats {
   }
 
   function mintYield() external {
-    yieldVault.mintRate();
+    contracts.yieldVault.mintRate();
   }
 
   function setApr(uint fixedPoint18) external {
     uint ratePerSecond = fixedPoint18 / 365 days;
-    yieldVault.setRatePerSecond(ratePerSecond);
+    contracts.yieldVault.setRatePerSecond(ratePerSecond);
   }
+
+  // Contract getters
+  function prizeToken() public returns (ERC20PermitMock) { return contracts.prizeToken; }
+  function underlyingToken() public returns (ERC20PermitMock) { return contracts.underlyingToken; }
+  function twab() public returns (TwabController) { return contracts.twab; }
+  function vaultFactory() public returns (VaultFactory) { return contracts.vaultFactory; }
+  function vault() public returns (Vault) { return contracts.vault; }
+  function yieldVault() public returns (YieldVaultMintRate) { return contracts.yieldVault; }
+  function pair() public returns (ILiquidationPair) { return contracts.pair; }
+  function prizePool() public returns (PrizePool) { return contracts.prizePool; }
+  function claimer() public returns (Claimer) { return contracts.claimer; }
+  function rng() public returns (RNGInterface) { return contracts.rng; }
+  function rngAuction() public returns (RngAuction) { return contracts.rngAuction; }
+  function drawAuction() public returns (DrawAuctionDirect) { return contracts.drawAuction; }
+  function drawManager() public returns (DrawManager) { return contracts.drawManager; }
+  function router() public returns (LiquidationRouter) { return contracts.router; }
+
 }

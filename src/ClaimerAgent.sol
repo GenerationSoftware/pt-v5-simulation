@@ -4,7 +4,7 @@ pragma solidity 0.8.17;
 import "forge-std/console2.sol";
 import { Vm } from "forge-std/Vm.sol";
 
-import { Environment } from "src/Environment.sol";
+import { Environment, Contracts } from "src/Environment.sol";
 import { Vault } from "v5-vault/Vault.sol";
 
 contract ClaimerAgent {
@@ -151,15 +151,17 @@ contract ClaimerAgent {
         );
         totalFeesForBatch += feesForBatch;
 
-        logToCsv(
-          RawClaimerLog({
-            drawId: drawId,
-            tier: tier,
-            winners: winners,
-            prizeIndices: prizeIndices,
-            feesForBatch: feesForBatch
-          })
-        );
+        if (env.outputDataLogs()) {
+          logToCsv(
+            RawClaimerLog({
+              drawId: drawId,
+              tier: tier,
+              winners: winners,
+              prizeIndices: prizeIndices,
+              feesForBatch: feesForBatch
+            })
+          );
+        }
 
         if (tier != numTiers - 1) {
           totalNormalPrizesClaimed += targetClaimCount;

@@ -21,49 +21,29 @@ contract DrawAgent {
   function check() public {
     GasConfig memory gasConfig = env.gasConfig();
 
-    uint costForRng = (gasConfig.gasUsagePerCompleteDraw + gasConfig.gasUsagePerStartDraw) *
-      gasConfig.gasPriceInPrizeTokens;
-    uint minimumForRng = costForRng + (costForRng / 10); // require 10% profit
-
-    uint costForDraw = (gasConfig.gasUsagePerCompleteDraw + gasConfig.gasUsagePerStartDraw) *
-      gasConfig.gasPriceInPrizeTokens;
-    uint minimumForDraw = costForDraw + (costForDraw / 10); // require 10% profit
-
     // console2.log("PrizePool hasNextDrawFinished: %s", env.prizePool().hasNextDrawFinished());
 
     if (env.prizePool().hasOpenDrawFinished()) {
       // uint256 lastCompletedDrawStartedAt = env.prizePool().lastClosedDrawStartedAt();
-      // uint256 reward = env.drawAuction().reward();
       uint256 nextDrawId = env.prizePool().getOpenDrawId();
       uint256 reserve = env.prizePool().reserve() + env.prizePool().reserveForOpenDraw();
 
       // console2.log("DrawID: %s", nextDrawId);
       // console2.log("PrizePool reserve: %s", reserve);
-      // console2.log("Minimum reward to cover cost: %s", minimum);
-      // console2.log("DrawAuction reward: %s", reward);
       // console2.log("Block Timestamp - last draw start: %s", block.timestamp - lastCompletedDrawStartedAt);
 
-      // if (reward >= minimum) {
-      //   console2.log("---------------- DrawAgent Draw: %s", nextDrawId);
-      //   // console2.log("---------------- Percentage of the reserve covering DrawAuction reward: %s", reserve > 0 ? reward * 100 / reserve : 0);
-      //   env.drawAuction().completeAndStartNextDraw(
-      //     uint256(keccak256(abi.encodePacked(block.timestamp, SEED)))
-      //   );
-      //   // console2.log("---------------- Total liquidity for draw: ", env.prizePool().getTotalContributionsForCompletedDraw() / 1e18);
-      //   drawCount++;
-      // } else {
-      //   // console2.log("---------------- Insufficient reward to complete Draw: %s", nextDrawId);
-      // }
-
       if (env.rngAuction().isAuctionOpen()) {
-        AuctionResults memory currentResults = AuctionResults(
-          address(this),
-          env.rngAuction().currentRewardPortion()
-        );
-        uint256 reward = RewardLib.reward(currentResults, reserve);
-        console2.log("---------------- DrawAgent predicted RngAuction reward: %s", reward);
+        uint256 prizeTokensPerRequest = (25e16 * 135e17) / 1e18; // linkPerReqeust * linkPriceInPrizeTokens / precision
+        uint costForRng = gasConfig.gasUsagePerChainlinkRequest * gasConfig.gasPriceInPrizeTokens + prizeTokensPerRequest;
+        uint minimumForRng = costForRng + (costForRng / 10); // require 10% profit
+
+        uint256 reward = env.rngAuction().currentRewardAmount(reserve);
+        if (reward > 0) {
+          console2.log("---------------- DrawAgent predicted RngAuction reward:  %s.%s * cost (%s)", reward / costForRng, ((reward * 100) / costForRng) % 100, reward);
+        }
         if (reward >= minimumForRng) {
-          console2.log("---------------- DrawAgent RngAuction: %s %s", nextDrawId, block.number);
+          console2.log("---------------- DrawAgent RngAuction Completed for Draw: %s", nextDrawId);
+          console2.log("---------------- DrawAgent RngAuction Completed after %s minutes.", env.rngAuction().elapsedTime() / 60);
           env.rngAuction().startRngRequest(address(this));
           rngCount++;
         } else {
@@ -75,17 +55,19 @@ contract DrawAgent {
       }
 
       if (env.drawAuction().isAuctionOpen()) {
-        AuctionResults[] memory currentResults = new AuctionResults[](2);
-        (currentResults[0],) = env.rngAuction().getAuctionResults();
-        currentResults[1] = AuctionResults(
-          address(this),
-          env.drawAuction().currentRewardPortion()
-        );
-        uint256[] memory rewards = RewardLib.rewards(currentResults, reserve);
-        console2.log("---------------- DrawAgent predicted DrawAuction reward: %s", rewards[1]);
-        if (rewards[1] >= minimumForDraw) {
-          console2.log("---------------- DrawAgent DrawAuction: %s", nextDrawId);
+        uint costForDraw = (gasConfig.gasUsagePerCompleteDraw + gasConfig.gasUsagePerStartDraw) *
+          gasConfig.gasPriceInPrizeTokens;
+        uint minimumForDraw = costForDraw + (costForDraw / 10); // require 10% profit
+
+        uint256 reward = env.drawAuction().currentRewardAmount(reserve);
+        if (reward > 0) {
+          console2.log("---------------- DrawAgent predicted DrawAuction reward: %s.%s * cost (%s)", reward / costForDraw, ((reward * 100) / costForDraw) % 100, reward);
+        }
+        if (reward >= minimumForDraw) {
+          console2.log("---------------- DrawAgent DrawAuction Completed for Draw: %s", nextDrawId);
+          console2.log("---------------- DrawAgent DrawAuction Completed after %s minutes.", env.drawAuction().elapsedTime() / 60);
           env.drawAuction().completeDraw(address(this));
+          // console2.log("---------------- Total liquidity for draw: ", env.prizePool().getTotalContributionsForCompletedDraw() / 1e18);
           drawCount++;
         } else {
           // console2.log("---------------- Insufficient reward to complete DrawAuction: %s", nextDrawId);

@@ -34,7 +34,8 @@ contract ClaimerAgentTest is Test {
       gasUsagePerLiquidation: 500_000,
       gasUsagePerStartDraw: 100_000,
       gasUsagePerCompleteDraw: 100_000,
-      gasUsagePerDispatchDraw: 100_000
+      gasUsagePerDispatchDraw: 100_000,
+      gasUsagePerChainlinkRequest: 100_000
     });
 
     vm.mockCall(
