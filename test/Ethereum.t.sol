@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.17;
 
-import "forge-std/Test.sol";
 import { console2 } from "forge-std/console2.sol";
-import { UFixed32x4 } from "v5-liquidator/libraries/FixedMathLib.sol";
+import { SimulatorTest } from "src/SimulatorTest.sol";
+
 import { UD2x18 } from "prb-math/UD2x18.sol";
 import { SD1x18 } from "prb-math/SD1x18.sol";
 import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
 import { TwabLib } from "v5-twab-controller/libraries/TwabLib.sol";
 
-import { Environment, PrizePoolConfig, CgdaLiquidatorConfig, LiquidatorConfig, ClaimerConfig, GasConfig } from "src/Environment.sol";
+import { Environment, PrizePoolConfig, CgdaLiquidatorConfig, DaLiquidatorConfig, ClaimerConfig, GasConfig } from "src/Environment.sol";
 
 import { ClaimerAgent } from "src/ClaimerAgent.sol";
 import { DrawAgent } from "src/DrawAgent.sol";
 import { LiquidatorAgent } from "src/LiquidatorAgent.sol";
-import { ValuesOverTime } from "src/ValuesOverTime.sol";
+import { SD59x18OverTime } from "src/SD59x18OverTime.sol";
+import { UintOverTime } from "src/UintOverTime.sol";
 
-contract EthereumTest is Test {
-  string runStatsOut = string.concat(vm.projectRoot(), "/data/simulation.csv");
+contract EthereumTest is SimulatorTest {
+  string simulatorCsv;
 
   uint32 drawPeriodSeconds = 1 days;
   uint32 grandPrizePeriodDraws = 365;
@@ -30,7 +31,8 @@ contract EthereumTest is Test {
   uint apr = 0.05e18;
   uint numUsers = 1;
 
-  ValuesOverTime public exchangeRatePrizeTokenToUnderlying;
+  SD59x18OverTime public exchangeRateOverTime; // Prize Token to Underlying Token
+  UintOverTime public aprOverTime;
 
   PrizePoolConfig public prizePoolConfig;
   ClaimerConfig public claimerConfig;
@@ -45,18 +47,13 @@ contract EthereumTest is Test {
     startTime = block.timestamp + 400 days;
     vm.warp(startTime);
 
-    exchangeRatePrizeTokenToUnderlying = new ValuesOverTime();
-    // POOL/UNDERLYING = 0.000001
-    exchangeRatePrizeTokenToUnderlying.add(startTime, wrap(1e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*2), wrap(1.5e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*4), wrap(2e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*6), wrap(4e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*8), wrap(3e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*10), wrap(1e18));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*12), wrap(5e17));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*14), wrap(1e17));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*16), wrap(5e16));
-    exchangeRatePrizeTokenToUnderlying.add(startTime+(drawPeriodSeconds*18), wrap(1e16));
+    initOutputFileCsv();
+
+    // setUpExchangeRate();
+    setUpExchangeRateFromJson();
+
+    // setUpApr();
+    setUpAprFromJson();
 
     console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
     console2.log("Draw Period (sec): ", drawPeriodSeconds);
@@ -98,45 +95,136 @@ contract EthereumTest is Test {
     env = new Environment();
     env.initialize(prizePoolConfig, claimerConfig, gasConfig);
 
-    // env.initializeVmmLiquidator(
-    //   LiquidatorConfig({
-    //     swapMultiplier: UFixed32x4.wrap(0.3e4),
-    //     liquidityFraction: UFixed32x4.wrap(0.1e4),
-    //     virtualReserveIn: 1000e18,
-    //     virtualReserveOut: 1000e18,
-    //     mink: 1000e18 * 1000e18
+    ///////////////// Liquidator /////////////////
+    // Initialize one of the liquidators. Comment the other out.
+
+    env.initializeDaLiquidator(
+      DaLiquidatorConfig({
+        initialTargetExchangeRate: exchangeRateOverTime.get(startTime),
+        phaseTwoDurationPercent: convert(10),
+        phaseTwoRangePercent: convert(10)
+      }),
+      prizePoolConfig
+    );
+
+    // env.initializeCgdaLiquidator(
+    //   CgdaLiquidatorConfig({
+    //     decayConstant: wrap(0.0002e18),
+    //     exchangeRateOverTime: exchangeRateOverTime.get(startTime),
+    //     periodLength: drawPeriodSeconds,
+    //     periodOffset: uint32(startTime),
+    //     targetFirstSaleTime: 2 hours
     //   })
     // );
 
-    env.initializeCgdaLiquidator(
-      CgdaLiquidatorConfig({
-        decayConstant: wrap(0.0002e18),
-        exchangeRatePrizeTokenToUnderlying: exchangeRatePrizeTokenToUnderlying.get(startTime),
-        periodLength: drawPeriodSeconds,
-        periodOffset: uint32(startTime),
-        targetFirstSaleTime: 2 hours
-      })
-    );
+    //////////////////////////////////////////////
 
-    claimerAgent = new ClaimerAgent(env);
-    liquidatorAgent = new LiquidatorAgent(env);
+    claimerAgent = new ClaimerAgent(env, vm);
+    liquidatorAgent = new LiquidatorAgent(env, vm);
     drawAgent = new DrawAgent(env);
   }
 
-  function testEthereum() public noGasMetering {
+  // NOTE: Order matters for ABI decode.
+  struct HistoricPrice {
+    uint256 exchangeRate;
+    uint256 timestamp;
+  }
+
+  function setUpExchangeRateFromJson() public {
+    exchangeRateOverTime = new SD59x18OverTime();
+
+    string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicPrices.json");
+    string memory jsonData = vm.readFile(jsonFile);
+    // NOTE: Options for exchange rate are: .usd or .eth
+    bytes memory usdData = vm.parseJson(jsonData, "$.usd");
+    HistoricPrice[] memory prices = abi.decode(usdData, (HistoricPrice[]));
+
+    uint256 initialTimestamp = prices[0].timestamp;
+    for (uint256 i = 0; i < prices.length; i++) {
+      HistoricPrice memory priceData = prices[i];
+      uint256 timeElapsed = priceData.timestamp - initialTimestamp;
+
+      exchangeRateOverTime.add(
+        startTime + timeElapsed,
+        SD59x18.wrap(int256(priceData.exchangeRate * 1e9))
+      );
+    }
+  }
+
+  function setUpExchangeRate() public {
+    exchangeRateOverTime = new SD59x18OverTime();
+    // Realistic test case
+    // POOL/UNDERLYING = 0.000001
+    // exchangeRateOverTime.add(startTime, wrap(1e18));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 2), wrap(1.5e18));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 4), wrap(2e18));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 6), wrap(4e18));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 8), wrap(3e18));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 10), wrap(1e18));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 12), wrap(5e17));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 14), wrap(1e17));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 16), wrap(5e16));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 18), wrap(1e16));
+
+    // Custom test case
+    exchangeRateOverTime.add(startTime, wrap(1e18));
+    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 1), wrap(1.02e18));
+    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 2), wrap(1.05e18));
+    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 3), wrap(1.02e18));
+    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 4), wrap(0.98e18));
+    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 5), wrap(0.98e18));
+    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 6), wrap(1.12e18));
+    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 7), wrap(1.5e18));
+  }
+
+  // NOTE: Order matters for ABI decode.
+  struct HistoricApr {
+    uint256 apr;
+    uint256 timestamp;
+  }
+
+  function setUpApr() public {
+    aprOverTime = new UintOverTime();
+
+    // Realistic test case
+    aprOverTime.add(startTime, 0.05e18);
+    aprOverTime.add(startTime + drawPeriodSeconds, 0.10e18);
+  }
+
+  function setUpAprFromJson() public {
+    aprOverTime = new UintOverTime();
+
+    string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicAaveApr.json");
+    string memory jsonData = vm.readFile(jsonFile);
+    // NOTE: Options for APR are: .usd or .eth
+    bytes memory usdData = vm.parseJson(jsonData, "$.usd");
+    HistoricApr[] memory aprData = abi.decode(usdData, (HistoricApr[]));
+
+    uint256 initialTimestamp = aprData[0].timestamp;
+    for (uint256 i = 0; i < aprData.length; i++) {
+      HistoricApr memory rowData = aprData[i];
+      uint256 timeElapsed = rowData.timestamp - initialTimestamp;
+
+      aprOverTime.add(startTime + timeElapsed, rowData.apr);
+    }
+  }
+
+  function testEthereum() public noGasMetering recordEvents {
     env.addUsers(numUsers, totalValueLocked / numUsers);
 
-    env.setApr(apr);
+    env.setApr(aprOverTime.get(startTime));
 
-    // vm.writeFile(runStatsOut,"");
-    // vm.writeLine(runStatsOut, "Timestamp,Completed Draws,Expected Draws,Available Yield,Available Yield (e18),Available Vault Shares,Available Vault Shares (e18),Required Prize Tokens,Required Prize Tokens (e18),Prize Pool Reserve,Prize Pool Reserve (e18)");
+    // initOutputFileCsv();
 
     for (uint i = startTime; i < startTime + duration; i += timeStep) {
       vm.warp(i);
+
+      // Cache data at beginning of tick
       uint availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));
       uint availableVaultShares = env.pair().maxAmountOut();
       uint requiredPrizeTokens = env.pair().computeExactAmountIn(availableVaultShares);
       uint prizePoolReserve = env.prizePool().reserve();
+
       // uint unrealizedReserve = env.prizePool().reserveForNextDraw();
       // string memory valuesPart1 = string.concat(
       //     vm.toString(i), ",",
@@ -155,10 +243,27 @@ contract EthereumTest is Test {
       //     vm.toString(prizePoolReserve / 1e18)
       // );
       // vm.writeLine(runStatsOut,string.concat(valuesPart1,valuesPart2));
+
+      // Let agents do their thing
+      env.setApr(aprOverTime.get(i));
       env.mintYield();
       claimerAgent.check();
-      liquidatorAgent.check(exchangeRatePrizeTokenToUnderlying.get(block.timestamp));
+      liquidatorAgent.check(exchangeRateOverTime.get(block.timestamp));
       drawAgent.check();
+
+      // Log data
+      logToCsv(
+        SimulatorLog({
+          drawId: env.prizePool().getLastClosedDrawId(),
+          timestamp: block.timestamp,
+          availableYield: availableYield,
+          availableVaultShares: availableVaultShares,
+          requiredPrizeTokens: requiredPrizeTokens,
+          prizePoolReserve: prizePoolReserve,
+          apr: aprOverTime.get(i),
+          tvl: totalValueLocked
+        })
+      );
     }
 
     printDraws();
@@ -217,7 +322,8 @@ contract EthereumTest is Test {
   }
 
   function printTotalClaimFees() public {
-    uint totalPrizes = claimerAgent.totalNormalPrizesClaimed() + claimerAgent.totalCanaryPrizesClaimed();
+    uint totalPrizes = claimerAgent.totalNormalPrizesClaimed() +
+      claimerAgent.totalCanaryPrizesClaimed();
     uint averageFeePerClaim = totalPrizes > 0 ? claimerAgent.totalFees() / totalPrizes : 0;
     console2.log("");
     console2.log("Average fee per claim (cents): ", averageFeePerClaim / 1e16);
@@ -260,4 +366,52 @@ contract EthereumTest is Test {
       );
     }
   }
+
+  ////////////////////////// CSV LOGGING //////////////////////////
+
+  struct SimulatorLog {
+    uint drawId;
+    uint timestamp;
+    uint availableYield;
+    uint availableVaultShares;
+    uint requiredPrizeTokens;
+    uint prizePoolReserve;
+    uint apr;
+    uint tvl;
+  }
+
+  // Clears and logs the CSV headers to the file
+  function initOutputFileCsv() public {
+    simulatorCsv = string.concat(vm.projectRoot(), "/data/simulatorOut.csv");
+    vm.writeFile(simulatorCsv, "");
+    vm.writeLine(
+      simulatorCsv,
+      "Draw ID, Timestamp, Available Yield, Available Vault Shares, Required Prize Tokens, Prize Pool Reserve, APR, TVL"
+    );
+  }
+
+  function logToCsv(SimulatorLog memory log) public {
+    vm.writeLine(
+      simulatorCsv,
+      string.concat(
+        vm.toString(log.drawId),
+        ",",
+        vm.toString(log.timestamp),
+        ",",
+        vm.toString(log.availableYield),
+        ",",
+        vm.toString(log.availableVaultShares),
+        ",",
+        vm.toString(log.requiredPrizeTokens),
+        ",",
+        vm.toString(log.prizePoolReserve),
+        ",",
+        vm.toString(log.apr),
+        ",",
+        vm.toString(log.tvl)
+      )
+    );
+  }
+
+  /////////////////////////////////////////////////////////////////
 }
