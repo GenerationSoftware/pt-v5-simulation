@@ -108,18 +108,12 @@ contract Environment is CommonBase, StdCheats {
 
   GasConfig internal _gasConfig;
 
-  bool public outputDataLogs;
 
   function initialize(
-    bool outputDataLogs_,
     PrizePoolConfig memory _prizePoolConfig,
     ClaimerConfig memory _claimerConfig,
-    GasConfig memory gasConfig_,
-    AuctionConfig memory _rngAuctionConfig,
-    AuctionConfig memory _drawAuctionConfig
+    GasConfig memory gasConfig_
   ) public {
-
-    outputDataLogs = outputDataLogs_;
     _gasConfig = gasConfig_;
 
     contracts.prizeToken = new ERC20PermitMock("POOL");
@@ -155,20 +149,6 @@ contract Environment is CommonBase, StdCheats {
       _claimerConfig.maxFeePortionOfPrize
     );
 
-    contracts.rng = new RNGBlockhash();
-    contracts.rngAuction = new RngAuction(
-      contracts.rng,
-      address(this),
-      _prizePoolConfig.drawPeriodSeconds,
-      _prizePoolConfig.firstDrawStartsAt,
-      _rngAuctionConfig.auctionDurationSeconds,
-      _rngAuctionConfig.auctionTargetTime
-    );
-    contracts.drawManager = new DrawManager(contracts.prizePool, address(this), address(0));
-    contracts.drawAuction = new DrawAuctionDirect(contracts.drawManager, contracts.rngAuction, _drawAuctionConfig.auctionDurationSeconds, _drawAuctionConfig.auctionTargetTime);
-    contracts.drawManager.grantRole(contracts.drawManager.DRAW_CLOSER_ROLE(), address(contracts.drawAuction));
-    contracts.prizePool.setDrawManager(address(contracts.drawManager));
-
     contracts.vault = Vault(
       contracts.vaultFactory.deployVault(
         contracts.underlyingToken,
@@ -183,6 +163,26 @@ contract Environment is CommonBase, StdCheats {
         address(this)
       )
     );
+  }
+
+  function initializeDrawAuctions(
+    PrizePoolConfig memory _prizePoolConfig,
+    AuctionConfig memory _rngAuctionConfig,
+    AuctionConfig memory _drawAuctionConfig
+  ) external {
+    contracts.rng = new RNGBlockhash();
+    contracts.rngAuction = new RngAuction(
+      contracts.rng,
+      address(this),
+      _prizePoolConfig.drawPeriodSeconds,
+      _prizePoolConfig.firstDrawStartsAt,
+      _rngAuctionConfig.auctionDurationSeconds,
+      _rngAuctionConfig.auctionTargetTime
+    );
+    contracts.drawManager = new DrawManager(contracts.prizePool, address(this), address(0));
+    contracts.drawAuction = new DrawAuctionDirect(contracts.drawManager, contracts.rngAuction, _drawAuctionConfig.auctionDurationSeconds, _drawAuctionConfig.auctionTargetTime);
+    contracts.drawManager.grantRole(contracts.drawManager.DRAW_CLOSER_ROLE(), address(contracts.drawAuction));
+    contracts.prizePool.setDrawManager(address(contracts.drawManager));
   }
 
   function initializeDaLiquidator(

@@ -34,12 +34,14 @@ contract LiquidatorAgent {
     // console2.log("amountOut %s costs %s", amountOut, amountIn);
     uint profit;
 
-    uint amountOutInPrizeTokens = uint(
-      convert(convert(int(amountOut)).mul(exchangeRatePrizeTokenToUnderlying))
-    );
+    {
+      uint amountOutInPrizeTokens = uint(
+        convert(convert(int(amountOut)).mul(exchangeRatePrizeTokenToUnderlying))
+      );
 
-    if (amountOutInPrizeTokens > amountIn) {
-      profit = amountOutInPrizeTokens - amountIn;
+      if (amountOutInPrizeTokens > amountIn) {
+        profit = amountOutInPrizeTokens - amountIn;
+      }
     }
 
     if (profit > gasCostInPrizeTokens) {
@@ -66,24 +68,23 @@ contract LiquidatorAgent {
 
       uint elapsedSinceDrawEnded = block.timestamp - env.prizePool().lastClosedDrawEndedAt();
       
-      if (env.outputDataLogs()) {
-        logToCsv(
-          LiquidatorLog({
-            drawId: env.prizePool().getLastClosedDrawId(),
-            timestamp: block.timestamp,
-            elapsedTime: elapsedSinceDrawEnded,
-            elapsedPercent: (elapsedSinceDrawEnded * 100) / 1 days,
-            availability: maxAmountOut,
-            amountIn: amountIn,
-            amountOut: amountOut,
-            exchangeRate: amountIn / amountOut,
-            marketExchangeRate: uint(SD59x18.unwrap(exchangeRatePrizeTokenToUnderlying)),
-            profit: profit,
-            efficiency: efficiencyPercent,
-            remainingYield: env.pair().maxAmountOut()
-          })
-        );
-      }
+      // LOGS
+      logToCsv(
+        LiquidatorLog({
+          drawId: env.prizePool().getLastClosedDrawId(),
+          timestamp: block.timestamp,
+          elapsedTime: elapsedSinceDrawEnded,
+          elapsedPercent: (elapsedSinceDrawEnded * 100) / 1 days,
+          availability: maxAmountOut,
+          amountIn: amountIn,
+          amountOut: amountOut,
+          exchangeRate: amountIn / amountOut,
+          marketExchangeRate: uint(SD59x18.unwrap(exchangeRatePrizeTokenToUnderlying)),
+          profit: profit,
+          efficiency: efficiencyPercent,
+          remainingYield: env.pair().maxAmountOut()
+        })
+      );
 
       // // NOTE: Percentage calc is hardcoded to 1 day.
       // console2.log(
@@ -149,6 +150,7 @@ contract LiquidatorAgent {
 
   function logToCsv(LiquidatorLog memory log) public {
     // split concatenations to avoid stack too deep
+    // LOGS
     string memory stringPart1 = string.concat(
       vm.toString(log.drawId),
       ",",

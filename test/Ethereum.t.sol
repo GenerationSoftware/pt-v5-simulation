@@ -27,8 +27,7 @@ contract EthereumTest is SimulatorTest {
   uint timeStep = 1 minutes;
   uint startTime;
 
-  uint totalValueLocked = 1_000_000e18;
-  uint apr = 0.05e18;
+  uint totalValueLocked = 100_000e18;
   uint numUsers = 1;
 
   SD59x18OverTime public exchangeRateOverTime; // Prize Token to Underlying Token
@@ -96,7 +95,7 @@ contract EthereumTest is SimulatorTest {
     // On Optimism gas is 0.000001588 gwei
     // 0.000001588 * 1800 = 0.0028584 POOL
     gasConfig = GasConfig({
-      gasPriceInPrizeTokens: 700 gwei,
+      gasPriceInPrizeTokens: 90_000 gwei, // 50 * 1800 = 90000 POOL
       gasUsagePerClaim: 150_000,
       gasUsagePerLiquidation: 500_000,
       gasUsagePerStartDraw: 152_473,
@@ -105,9 +104,11 @@ contract EthereumTest is SimulatorTest {
       gasUsagePerChainlinkRequest: 230_000 // Gas for tx as well as gas used by vrf provider
     });
 
-    bool outputDataLogs = true;
     env = new Environment();
-    env.initialize(outputDataLogs, prizePoolConfig, claimerConfig, gasConfig, rngAuctionConfig, drawAuctionConfig);
+    env.initialize(prizePoolConfig, claimerConfig, gasConfig);
+
+    ///////////////// Draw Auctions /////////////////
+    env.initializeDrawAuctions(prizePoolConfig, rngAuctionConfig, drawAuctionConfig);
 
     ///////////////// Liquidator /////////////////
     // Initialize one of the liquidators. Comment the other out.
@@ -132,10 +133,9 @@ contract EthereumTest is SimulatorTest {
     // );
 
     //////////////////////////////////////////////
-
     claimerAgent = new ClaimerAgent(env, vm);
     liquidatorAgent = new LiquidatorAgent(env, vm);
-    drawAgent = new DrawAgent(env);
+    drawAgent = new DrawAgent(env, vm);
   }
 
   // NOTE: Order matters for ABI decode.
@@ -201,8 +201,8 @@ contract EthereumTest is SimulatorTest {
     aprOverTime = new UintOverTime();
 
     // Realistic test case
-    aprOverTime.add(startTime, 0.05e18);
-    aprOverTime.add(startTime + drawPeriodSeconds, 0.10e18);
+    aprOverTime.add(startTime, 0.015e18);
+    // aprOverTime.add(startTime + drawPeriodSeconds, 0.10e18);
   }
 
   function setUpAprFromJson() public {
@@ -266,21 +266,19 @@ contract EthereumTest is SimulatorTest {
       liquidatorAgent.check(exchangeRateOverTime.get(block.timestamp));
       drawAgent.check();
 
-      // Log data
-      if (env.outputDataLogs()) {
-        logToCsv(
-          SimulatorLog({
-            drawId: env.prizePool().getLastClosedDrawId(),
-            timestamp: block.timestamp,
-            availableYield: availableYield,
-            availableVaultShares: availableVaultShares,
-            requiredPrizeTokens: requiredPrizeTokens,
-            prizePoolReserve: prizePoolReserve,
-            apr: aprOverTime.get(i),
-            tvl: totalValueLocked
-          })
-        );
-      }
+      // LOGS
+      logToCsv(
+        SimulatorLog({
+          drawId: env.prizePool().getLastClosedDrawId(),
+          timestamp: block.timestamp,
+          availableYield: availableYield,
+          availableVaultShares: availableVaultShares,
+          requiredPrizeTokens: requiredPrizeTokens,
+          prizePoolReserve: prizePoolReserve,
+          apr: aprOverTime.get(i),
+          tvl: totalValueLocked
+        })
+      );
     }
 
     printDraws();
@@ -407,6 +405,7 @@ contract EthereumTest is SimulatorTest {
     );
   }
 
+  // LOGS
   function logToCsv(SimulatorLog memory log) public {
     vm.writeLine(
       simulatorCsv,

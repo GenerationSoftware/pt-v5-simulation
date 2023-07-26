@@ -151,17 +151,16 @@ contract ClaimerAgent {
         );
         totalFeesForBatch += feesForBatch;
 
-        if (env.outputDataLogs()) {
-          logToCsv(
-            RawClaimerLog({
-              drawId: drawId,
-              tier: tier,
-              winners: winners,
-              prizeIndices: prizeIndices,
-              feesForBatch: feesForBatch
-            })
-          );
-        }
+        // LOGS
+        logToCsv(
+          RawClaimerLog({
+            drawId: drawId,
+            tier: tier,
+            winners: winners,
+            prizeIndices: prizeIndices,
+            feesForBatch: feesForBatch
+          })
+        );
 
         if (tier != numTiers - 1) {
           totalNormalPrizesClaimed += targetClaimCount;
