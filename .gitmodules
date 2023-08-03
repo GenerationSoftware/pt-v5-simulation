@@ -28,3 +28,6 @@
 [submodule "lib/pt-v5-rng-contracts"]
 	path = lib/pt-v5-rng-contracts
 	url = https://github.com/generationsoftware/pt-v5-rng-contracts
+[submodule "lib/pt-v5-cgda-liquidator"]
+	path = lib/pt-v5-cgda-liquidator
+	url = https://github.com/generationsoftware/pt-v5-cgda-liquidator
