@@ -1,11 +1,11 @@
-pragma solidity 0.8.17;
+pragma solidity 0.8.19;
 
 import "forge-std/console2.sol";
 import { Vm } from "forge-std/Vm.sol";
 
-import { Environment } from "src/Environment.sol";
+import { Environment } from "./Environment.sol";
 import { SD59x18, wrap, convert, uMAX_SD59x18 } from "prb-math/SD59x18.sol";
-import { LiquidationPair } from "v5-liquidator/LiquidationPair.sol";
+import { LiquidationPair } from "pt-v5-cgda-liquidator/LiquidationPair.sol";
 
 contract LiquidatorAgent {
   Environment public env;
@@ -16,7 +16,7 @@ contract LiquidatorAgent {
   constructor(Environment _env, Vm _vm) {
     env = _env;
     vm = _vm;
-    initOutputFileCsv();
+    // initOutputFileCsv();
     env.prizeToken().approve(address(env.router()), type(uint).max);
   }
 
@@ -57,30 +57,26 @@ contract LiquidatorAgent {
 
       totalApproxProfit += profit;
 
-      SD59x18 amountOutInPrizeTokens = convert(int(amountOut)).mul(
-        exchangeRatePrizeTokenToUnderlying
-      );
-      SD59x18 efficiency = convert(int(amountIn)).div(amountOutInPrizeTokens);
+      SD59x18 efficiency = convert(int(amountIn)).div(convert(int(amountOutInPrizeTokens)));
       uint efficiencyPercent = uint(convert(efficiency.mul(convert(100))));
-
       uint elapsedSinceDrawEnded = block.timestamp - env.prizePool().lastClosedDrawEndedAt();
 
-      logToCsv(
-        LiquidatorLog({
-          drawId: env.prizePool().getLastClosedDrawId(),
-          timestamp: block.timestamp,
-          elapsedTime: elapsedSinceDrawEnded,
-          elapsedPercent: (elapsedSinceDrawEnded * 100) / 1 days,
-          availability: maxAmountOut,
-          amountIn: amountIn,
-          amountOut: amountOut,
-          exchangeRate: amountIn / amountOut,
-          marketExchangeRate: uint(SD59x18.unwrap(exchangeRatePrizeTokenToUnderlying)),
-          profit: profit,
-          efficiency: efficiencyPercent,
-          remainingYield: env.pair().maxAmountOut()
-        })
-      );
+      // logToCsv(
+      //   LiquidatorLog({
+      //     drawId: env.prizePool().getLastClosedDrawId(),
+      //     timestamp: block.timestamp,
+      //     elapsedTime: elapsedSinceDrawEnded,
+      //     elapsedPercent: (elapsedSinceDrawEnded * 100) / 1 days,
+      //     availability: maxAmountOut,
+      //     amountIn: amountIn,
+      //     amountOut: amountOut,
+      //     exchangeRate: amountIn / amountOut,
+      //     marketExchangeRate: uint(SD59x18.unwrap(exchangeRatePrizeTokenToUnderlying)),
+      //     profit: profit,
+      //     efficiency: efficiencyPercent,
+      //     remainingYield: env.pair().maxAmountOut()
+      //   })
+      // );
 
       // // NOTE: Percentage calc is hardcoded to 1 day.
       // console2.log(
@@ -144,36 +140,36 @@ contract LiquidatorAgent {
     );
   }
 
-  function logToCsv(LiquidatorLog memory log) public {
-    vm.writeLine(
-      liquidatorCsv,
-      string.concat(
-        vm.toString(log.drawId),
-        ",",
-        vm.toString(log.timestamp),
-        ",",
-        vm.toString(log.elapsedTime),
-        ",",
-        vm.toString(log.elapsedPercent),
-        ",",
-        vm.toString(log.availability),
-        ",",
-        vm.toString(log.amountIn),
-        ",",
-        vm.toString(log.amountOut),
-        ",",
-        vm.toString(log.exchangeRate),
-        ",",
-        vm.toString(log.marketExchangeRate),
-        ",",
-        vm.toString(log.profit),
-        ",",
-        vm.toString(log.efficiency),
-        ",",
-        vm.toString(log.remainingYield)
-      )
-    );
-  }
+  // function logToCsv(LiquidatorLog memory log) public {
+  //   vm.writeLine(
+  //     liquidatorCsv,
+  //     string.concat(
+  //       vm.toString(log.drawId),
+  //       ",",
+  //       vm.toString(log.timestamp),
+  //       ",",
+  //       vm.toString(log.elapsedTime),
+  //       ",",
+  //       vm.toString(log.elapsedPercent),
+  //       ",",
+  //       vm.toString(log.availability),
+  //       ",",
+  //       vm.toString(log.amountIn),
+  //       ",",
+  //       vm.toString(log.amountOut),
+  //       ",",
+  //       vm.toString(log.exchangeRate),
+  //       ",",
+  //       vm.toString(log.marketExchangeRate),
+  //       ",",
+  //       vm.toString(log.profit),
+  //       ",",
+  //       vm.toString(log.efficiency),
+  //       ",",
+  //       vm.toString(log.remainingYield)
+  //     )
+  //   );
+  // }
 
   /////////////////////////////////////////////////////////////////
 }

@@ -1,8 +1,18 @@
-pragma solidity 0.8.17;
+pragma solidity 0.8.19;
 
 import "forge-std/console2.sol";
 
-import { Environment, GasConfig } from "src/Environment.sol";
+import {
+  Environment,
+  RngAuction,
+  RngAuctionRelayerDirect,
+  RngRelayAuction,
+  GasConfig
+} from "./Environment.sol";
+
+import { UD2x18 } from "prb-math/UD2x18.sol";
+
+import { AuctionResult } from "pt-v5-draw-auction/interfaces/IAuction.sol";
 
 contract DrawAgent {
   Environment public env;
@@ -23,29 +33,71 @@ contract DrawAgent {
 
     // console2.log("PrizePool hasNextDrawFinished: %s", env.prizePool().hasNextDrawFinished());
 
-    if (env.prizePool().hasOpenDrawFinished()) {
-      uint256 lastCompletedDrawStartedAt = env.prizePool().lastClosedDrawStartedAt();
-      uint256 nextDrawId = env.prizePool().getOpenDrawId();
-      uint256 reward = env.drawAuction().reward();
-      uint256 reserve = env.prizePool().reserve() + env.prizePool().reserveForOpenDraw();
+    RngAuction rngAuction = env.rngAuction();
+    RngAuctionRelayerDirect rngAuctionRelayerDirect = env.rngAuctionRelayerDirect();
+    RngRelayAuction rngRelayAuction = env.rngRelayAuction();
 
-      // console2.log("DrawID: %s", nextDrawId);
-      // console2.log("PrizePool reserve: %s", reserve);
-      // console2.log("Minimum reward to cover cost: %s", minimum);
-      // console2.log("DrawAuction reward: %s", reward);
-      // console2.log("Block Timestamp - last draw start: %s", block.timestamp - lastCompletedDrawStartedAt);
+    uint32 lastSequenceId = rngAuction.lastSequenceId();
 
-      if (reward >= minimum) {
-        console2.log("---------------- DrawAgent Draw: %s", nextDrawId);
-        // console2.log("---------------- Percentage of the reserve covering DrawAuction reward: %s", reserve > 0 ? reward * 100 / reserve : 0);
-        env.drawAuction().completeAndStartNextDraw(
-          uint256(keccak256(abi.encodePacked(block.timestamp, SEED)))
-        );
-        // console2.log("---------------- Total liquidity for draw: ", env.prizePool().getTotalContributionsForCompletedDraw() / 1e18);
-        drawCount++;
+    if (rngAuction.isAuctionOpen()) {
+      UD2x18 rewardFraction = rngAuction.currentFractionalReward();
+
+      AuctionResult memory auctionResult = AuctionResult({
+        rewardFraction: rewardFraction,
+        recipient: address(this)
+      });
+
+      AuctionResult[] memory auctionResults = new AuctionResult[](1);
+      auctionResults[0] = auctionResult;
+
+      uint256[] memory rewards = rngRelayAuction.computeRewards(auctionResults);
+
+      if (rewards[0] > minimum) {
+        rngAuction.startRngRequest(address(this));
+        uint profit = rewards[0] - minimum;
+        // console2.log("RngAuction TRIGGERED!!!!!!!!!!!!!! profit:", profit);
       } else {
-        // console2.log("---------------- Insufficient reward to complete Draw: %s", nextDrawId);
+        // console2.log("RngAuction does not meet minimum", rewards[0], minimum);
       }
     }
+
+    // console2.log("rngAuction.lastSequenceId(): ", rngAuction.lastSequenceId());
+    // if (rngAuction.lastSequenceId() > 0) {
+    //   console2.log("rngAuction.isRngComplete():", rngAuction.isRngComplete());
+    //   console2.log("rngRelayAuction.isSequenceCompleted(lastSequenceId): ", rngRelayAuction.isSequenceCompleted(lastSequenceId));
+    // }
+
+    if (lastSequenceId > 0 && rngAuction.isRngComplete() && !rngRelayAuction.isSequenceCompleted(lastSequenceId)) { // then get relay
+
+      (uint randomNumber, uint64 completedAt) = rngAuction.getRngResults();
+      
+      // compute reward
+      AuctionResult memory rngAuctionResult = rngAuction.getLastAuctionResult();
+
+      uint64 elapsedTime = uint64(block.timestamp - completedAt);
+
+      UD2x18 rewardFraction = rngRelayAuction.computeRewardFraction(elapsedTime);
+
+      AuctionResult memory auctionResult = AuctionResult({
+        rewardFraction: rewardFraction,
+        recipient: address(this)
+      });
+
+      AuctionResult[] memory auctionResults = new AuctionResult[](2);
+      auctionResults[0] = rngAuctionResult;
+      auctionResults[1] = auctionResult;
+
+      uint[] memory rewards = rngRelayAuction.computeRewards(auctionResults);
+
+      if (rewards[1] > minimum) {
+        rngAuctionRelayerDirect.relay(rngRelayAuction, address(this));
+        drawCount++;
+        uint profit = rewards[1] - minimum;
+        // console2.log("RngRelayAuction TRIGGERED!!!!!!!!!!!!!! profit: ", profit);
+      } else {
+        // console2.log("RngRelayAuction does not meet minimum", rewards[1], minimum);
+      }
+    }
+
   }
 }

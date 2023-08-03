@@ -1,10 +1,6 @@
 [submodule "lib/forge-std"]
 	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
-	branch = v1
-[submodule "lib/pt-v5-liquidator"]
-	path = lib/pt-v5-liquidator
-	url = https://github.com/generationsoftware/pt-v5-liquidator
 [submodule "lib/pt-v5-prize-pool"]
 	path = lib/pt-v5-prize-pool
 	url = https://github.com/generationsoftware/pt-v5-prize-pool
@@ -17,7 +13,6 @@
 [submodule "lib/pt-v5-draw-auction"]
 	path = lib/pt-v5-draw-auction
 	url = https://github.com/generationsoftware/pt-v5-draw-auction
-	branch = temp-for-simulator
 [submodule "lib/pt-v5-twab-controller"]
 	path = lib/pt-v5-twab-controller
 	url = https://github.com/generationsoftware/pt-v5-twab-controller
@@ -27,9 +22,12 @@
 [submodule "lib/pt-owner-manager-contracts"]
 	path = lib/pt-owner-manager-contracts
 	url = https://github.com/GenerationSoftware/pt-owner-manager-contracts
-[submodule "lib/pt-v5-cgda-liquidator"]
-	path = lib/pt-v5-cgda-liquidator
-	url = https://github.com/GenerationSoftware/pt-v5-cgda-liquidator
 [submodule "lib/pt-v5-liquidator-interfaces"]
 	path = lib/pt-v5-liquidator-interfaces
 	url = https://github.com/GenerationSoftware/pt-v5-liquidator-interfaces
+[submodule "lib/pt-v5-rng-contracts"]
+	path = lib/pt-v5-rng-contracts
+	url = https://github.com/generationsoftware/pt-v5-rng-contracts
+[submodule "lib/pt-v5-cgda-liquidator"]
+	path = lib/pt-v5-cgda-liquidator
+	url = https://github.com/generationsoftware/pt-v5-cgda-liquidator

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.17;
+pragma solidity 0.8.19;
 
 import "forge-std/console2.sol";
 import { Vm } from "forge-std/Vm.sol";
+import { Vault } from "pt-v5-vault/Vault.sol";
 
-import { Environment } from "src/Environment.sol";
-import { Vault } from "v5-vault/Vault.sol";
+import { Environment } from "./Environment.sol";
 
 contract ClaimerAgent {
   Vm vm;
@@ -151,15 +151,15 @@ contract ClaimerAgent {
         );
         totalFeesForBatch += feesForBatch;
 
-        logToCsv(
-          RawClaimerLog({
-            drawId: drawId,
-            tier: tier,
-            winners: winners,
-            prizeIndices: prizeIndices,
-            feesForBatch: feesForBatch
-          })
-        );
+        // logToCsv(
+        //   RawClaimerLog({
+        //     drawId: drawId,
+        //     tier: tier,
+        //     winners: winners,
+        //     prizeIndices: prizeIndices,
+        //     feesForBatch: feesForBatch
+        //   })
+        // );
 
         if (tier != numTiers - 1) {
           totalNormalPrizesClaimed += targetClaimCount;

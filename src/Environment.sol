@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.17;
+pragma solidity 0.8.19;
 
 import "forge-std/console2.sol";
 import { CommonBase } from "forge-std/Base.sol";
@@ -8,27 +8,28 @@ import { UD2x18, intoUD60x18 } from "prb-math/UD2x18.sol";
 import { SD1x18, unwrap, UNIT } from "prb-math/SD1x18.sol";
 import { SD59x18, convert } from "prb-math/SD59x18.sol";
 
-import { Vault } from "v5-vault/Vault.sol";
-import { VaultFactory } from "v5-vault/VaultFactory.sol";
-import { ERC20PermitMock } from "v5-vault-test/contracts/mock/ERC20PermitMock.sol";
-import { DrawAuction } from "v5-draw-beacon/DrawAuction.sol";
-import { TwabController } from "v5-twab-controller/TwabController.sol";
-import { PrizePool, ConstructorParams } from "v5-prize-pool/PrizePool.sol";
-import { Claimer } from "v5-vrgda-claimer/Claimer.sol";
+import { Vault } from "pt-v5-vault/Vault.sol";
+import { VaultFactory } from "pt-v5-vault/VaultFactory.sol";
+import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 
-import { ILiquidationSource } from "v5-liquidator-interfaces/ILiquidationSource.sol";
-import { ILiquidationPair } from "v5-liquidator-interfaces/ILiquidationPair.sol";
+import { RNGBlockhash } from "rng/RNGBlockhash.sol";
+import { RNGInterface } from "rng/RNGInterface.sol";
+import { RngAuction } from "pt-v5-draw-auction/RngAuction.sol";
+import { RngAuctionRelayerDirect } from "pt-v5-draw-auction/RngAuctionRelayerDirect.sol";
+import { RngRelayAuction } from "pt-v5-draw-auction/RngRelayAuction.sol";
 
-import { LiquidationPair } from "v5-liquidator/LiquidationPair.sol";
-import { LiquidationPairFactory } from "v5-liquidator/LiquidationPairFactory.sol";
-import { LiquidationRouter } from "v5-liquidator/LiquidationRouter.sol";
+import { TwabController } from "pt-v5-twab-controller/TwabController.sol";
+import { PrizePool, ConstructorParams } from "pt-v5-prize-pool/PrizePool.sol";
+import { Claimer } from "pt-v5-claimer/Claimer.sol";
 
-import { ILiquidationSource as CgdaILiquidationSource } from "v5-cgda-liquidator/interfaces/ILiquidationSource.sol";
-import { LiquidationPair as CgdaLiquidationPair } from "v5-cgda-liquidator/LiquidationPair.sol";
-import { LiquidationPairFactory as CgdaLiquidationPairFactory } from "v5-cgda-liquidator/LiquidationPairFactory.sol";
-import { LiquidationRouter as CgdaLiquidationRouter } from "v5-cgda-liquidator/LiquidationRouter.sol";
+import { ILiquidationSource } from "pt-v5-liquidator-interfaces/ILiquidationSource.sol";
+import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.sol";
 
-import { YieldVaultMintRate } from "src/YieldVaultMintRate.sol";
+import { LiquidationPair } from "pt-v5-cgda-liquidator/LiquidationPair.sol";
+import { LiquidationPairFactory } from "pt-v5-cgda-liquidator/LiquidationPairFactory.sol";
+import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
+
+import { YieldVaultMintRate } from "./YieldVaultMintRate.sol";
 
 struct PrizePoolConfig {
   uint32 grandPrizePeriodDraws;
@@ -82,8 +83,11 @@ contract Environment is CommonBase, StdCheats {
   ILiquidationPair public pair;
   PrizePool public prizePool;
   Claimer public claimer;
-  DrawAuction public drawAuction;
   LiquidationRouter public router;
+  RNGInterface public rng;
+  RngAuction public rngAuction;
+  RngAuctionRelayerDirect public rngAuctionRelayerDirect;
+  RngRelayAuction public rngRelayAuction;
 
   address[] public users;
 
@@ -95,6 +99,18 @@ contract Environment is CommonBase, StdCheats {
     GasConfig memory gasConfig_
   ) public {
     _gasConfig = gasConfig_;
+    rng = new RNGBlockhash();
+    rngAuction = new RngAuction(
+      rng,
+      address(this),
+      _prizePoolConfig.drawPeriodSeconds,
+      _prizePoolConfig.firstDrawStartsAt,
+      6 hours,
+      1 hours
+    );
+    rngAuctionRelayerDirect = new RngAuctionRelayerDirect(
+      rngAuction
+    );
     prizeToken = new ERC20PermitMock("POOL");
     underlyingToken = new ERC20PermitMock("USDC");
     yieldVault = new YieldVaultMintRate(underlyingToken, "Yearnish yUSDC", "yUSDC", address(this));
@@ -119,6 +135,14 @@ contract Environment is CommonBase, StdCheats {
     });
 
     prizePool = new PrizePool(params);
+
+    rngRelayAuction = new RngRelayAuction(
+      prizePool,
+      address(rngAuctionRelayerDirect),
+      6 hours,
+      1 hours
+    );
+
     vaultFactory = new VaultFactory();
 
     claimer = new Claimer(
@@ -129,9 +153,7 @@ contract Environment is CommonBase, StdCheats {
       _claimerConfig.maxFeePortionOfPrize
     );
 
-    drawAuction = new DrawAuction(prizePool, _prizePoolConfig.drawPeriodSeconds / 8);
-
-    prizePool.setDrawManager(address(drawAuction));
+    prizePool.setDrawManager(address(rngRelayAuction));
 
     vault = Vault(
       vaultFactory.deployVault(
@@ -149,42 +171,11 @@ contract Environment is CommonBase, StdCheats {
     );
   }
 
-  function initializeDaLiquidator(
-    DaLiquidatorConfig memory _liquidatorConfig,
-    PrizePoolConfig memory _prizePoolConfig
-  ) external virtual {
-    LiquidationPairFactory pairFactory = new LiquidationPairFactory(
-      _prizePoolConfig.drawPeriodSeconds,
-      uint32(_prizePoolConfig.firstDrawStartsAt)
-    );
-    router = new LiquidationRouter(pairFactory);
-
-    console2.log("~~~ Initialize DaLiquidator ~~~");
-    console2.log("Target Exchange Rate", _liquidatorConfig.initialTargetExchangeRate.unwrap());
-    console2.log("Phase Two Duration Percent", convert(_liquidatorConfig.phaseTwoDurationPercent));
-    console2.log("Phase Two Range Percent", convert(_liquidatorConfig.phaseTwoRangePercent));
-    console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-
-    pair = ILiquidationPair(
-      address(
-        pairFactory.createPair(
-          ILiquidationSource(address(vault)),
-          address(prizeToken),
-          address(vault),
-          _liquidatorConfig.initialTargetExchangeRate,
-          _liquidatorConfig.phaseTwoDurationPercent,
-          _liquidatorConfig.phaseTwoRangePercent
-        )
-      )
-    );
-    vault.setLiquidationPair(LiquidationPair(address(pair)));
-  }
-
   function initializeCgdaLiquidator(
     CgdaLiquidatorConfig memory _liquidatorConfig
   ) external virtual {
-    CgdaLiquidationPairFactory pairFactory = new CgdaLiquidationPairFactory();
-    CgdaLiquidationRouter cgdaRouter = new CgdaLiquidationRouter(pairFactory);
+    LiquidationPairFactory pairFactory = new LiquidationPairFactory();
+    LiquidationRouter cgdaRouter = new LiquidationRouter(pairFactory);
 
     console2.log(
       "initializeCgdaLiquidator _liquidatorConfig.exchangeRatePrizeTokenToUnderlying",
@@ -208,7 +199,7 @@ contract Environment is CommonBase, StdCheats {
     pair = ILiquidationPair(
       address(
         pairFactory.createPair(
-          CgdaILiquidationSource(address(vault)),
+          ILiquidationSource(address(vault)),
           address(prizeToken),
           address(vault),
           _liquidatorConfig.periodLength,
@@ -216,7 +207,8 @@ contract Environment is CommonBase, StdCheats {
           _liquidatorConfig.targetFirstSaleTime,
           _liquidatorConfig.decayConstant,
           _initialAmountIn,
-          _initialAmountOut
+          _initialAmountOut,
+          1e18
         )
       )
     );
