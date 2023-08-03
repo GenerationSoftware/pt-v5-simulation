@@ -21,12 +21,12 @@ contract EthereumTest is SimulatorTest {
   uint32 drawPeriodSeconds = 1 days;
   uint32 grandPrizePeriodDraws = 365;
 
-  uint duration = 10 days + 0.5 days;
-  uint timeStep = 1 minutes;
+  uint duration = 30 days + 0.5 days;
+  uint timeStep = 5 minutes;
   uint startTime;
 
-  uint totalValueLocked = 1_000_000e18;
-  uint apr = 0.05e18;
+  uint totalValueLocked;
+  uint apr = 0.015e18;
   uint numUsers = 1;
 
   SD59x18OverTime public exchangeRateOverTime; // Prize Token to Underlying Token
@@ -45,10 +45,16 @@ contract EthereumTest is SimulatorTest {
     startTime = block.timestamp + 400 days;
     vm.warp(startTime);
 
+    totalValueLocked = vm.envUint("TVL") * 1e18;
+    console2.log("TVL: ", vm.envUint("TVL"));
+    if (totalValueLocked == 0) {
+      revert("Please define TVL env var > 0");
+    }
+
     initOutputFileCsv();
 
-    // setUpExchangeRate();
-    setUpExchangeRateFromJson();
+    setUpExchangeRate();
+    // setUpExchangeRateFromJson();
 
     // setUpApr();
     setUpAprFromJson();
@@ -64,7 +70,7 @@ contract EthereumTest is SimulatorTest {
       numberOfTiers: 3,
       tierShares: 100,
       canaryShares: 30,
-      reserveShares: 20,
+      reserveShares: 50,
       claimExpansionThreshold: UD2x18.wrap(0.8e18),
       smoothing: SD1x18.wrap(0.3e18)
     });
@@ -96,24 +102,15 @@ contract EthereumTest is SimulatorTest {
     ///////////////// Liquidator /////////////////
     // Initialize one of the liquidators. Comment the other out.
 
-    env.initializeDaLiquidator(
-      DaLiquidatorConfig({
-        initialTargetExchangeRate: exchangeRateOverTime.get(startTime),
-        phaseTwoDurationPercent: convert(10),
-        phaseTwoRangePercent: convert(10)
-      }),
-      prizePoolConfig
+    env.initializeCgdaLiquidator(
+      CgdaLiquidatorConfig({
+        decayConstant: wrap(0.001e18),
+        exchangeRatePrizeTokenToUnderlying: exchangeRateOverTime.get(startTime),
+        periodLength: drawPeriodSeconds,
+        periodOffset: uint32(startTime),
+        targetFirstSaleTime: drawPeriodSeconds / 2
+      })
     );
-
-    // env.initializeCgdaLiquidator(
-    //   CgdaLiquidatorConfig({
-    //     decayConstant: wrap(0.0002e18),
-    //     exchangeRateOverTime: exchangeRateOverTime.get(startTime),
-    //     periodLength: drawPeriodSeconds,
-    //     periodOffset: uint32(startTime),
-    //     targetFirstSaleTime: 2 hours
-    //   })
-    // );
 
     //////////////////////////////////////////////
 
@@ -166,13 +163,13 @@ contract EthereumTest is SimulatorTest {
 
     // Custom test case
     exchangeRateOverTime.add(startTime, wrap(1e18));
-    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 1), wrap(1.02e18));
-    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 2), wrap(1.05e18));
-    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 3), wrap(1.02e18));
-    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 4), wrap(0.98e18));
-    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 5), wrap(0.98e18));
-    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 6), wrap(1.12e18));
-    exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 7), wrap(1.5e18));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 1), wrap(1.02e18));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 2), wrap(1.05e18));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 3), wrap(1.02e18));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 4), wrap(0.98e18));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 5), wrap(0.98e18));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 6), wrap(1.12e18));
+    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 7), wrap(1.5e18));
   }
 
   // NOTE: Order matters for ABI decode.
@@ -216,6 +213,7 @@ contract EthereumTest is SimulatorTest {
 
     for (uint i = startTime; i < startTime + duration; i += timeStep) {
       vm.warp(i);
+      vm.roll(block.number+1);
 
       // Cache data at beginning of tick
       uint availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));

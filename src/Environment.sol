@@ -12,8 +12,8 @@ import { Vault } from "pt-v5-vault/Vault.sol";
 import { VaultFactory } from "pt-v5-vault/VaultFactory.sol";
 import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 
-import { RNGBlockhash } from "pt-v5-rng-contracts/RNGBlockhash.sol";
-import { RNGInterface } from "pt-v5-rng-contracts/RNGInterface.sol";
+import { RNGBlockhash } from "rng/RNGBlockhash.sol";
+import { RNGInterface } from "rng/RNGInterface.sol";
 import { RngAuction } from "pt-v5-draw-auction/RngAuction.sol";
 import { RngAuctionRelayerDirect } from "pt-v5-draw-auction/RngAuctionRelayerDirect.sol";
 import { RngRelayAuction } from "pt-v5-draw-auction/RngRelayAuction.sol";
@@ -105,8 +105,8 @@ contract Environment is CommonBase, StdCheats {
       address(this),
       _prizePoolConfig.drawPeriodSeconds,
       _prizePoolConfig.firstDrawStartsAt,
-      2 hours,
-      30 minutes
+      6 hours,
+      1 hours
     );
     rngAuctionRelayerDirect = new RngAuctionRelayerDirect(
       rngAuction
@@ -138,9 +138,9 @@ contract Environment is CommonBase, StdCheats {
 
     rngRelayAuction = new RngRelayAuction(
       prizePool,
-      rngAuctionRelayerDirect,
-      2 hours,
-      30 minutes
+      address(rngAuctionRelayerDirect),
+      6 hours,
+      1 hours
     );
 
     vaultFactory = new VaultFactory();
@@ -153,7 +153,7 @@ contract Environment is CommonBase, StdCheats {
       _claimerConfig.maxFeePortionOfPrize
     );
 
-    prizePool.setDrawManager(rngRelayAuction);
+    prizePool.setDrawManager(address(rngRelayAuction));
 
     vault = Vault(
       vaultFactory.deployVault(
@@ -171,42 +171,11 @@ contract Environment is CommonBase, StdCheats {
     );
   }
 
-  function initializeDaLiquidator(
-    DaLiquidatorConfig memory _liquidatorConfig,
-    PrizePoolConfig memory _prizePoolConfig
-  ) external virtual {
-    LiquidationPairFactory pairFactory = new LiquidationPairFactory(
-      _prizePoolConfig.drawPeriodSeconds,
-      uint32(_prizePoolConfig.firstDrawStartsAt)
-    );
-    router = new LiquidationRouter(pairFactory);
-
-    console2.log("~~~ Initialize DaLiquidator ~~~");
-    console2.log("Target Exchange Rate", _liquidatorConfig.initialTargetExchangeRate.unwrap());
-    console2.log("Phase Two Duration Percent", convert(_liquidatorConfig.phaseTwoDurationPercent));
-    console2.log("Phase Two Range Percent", convert(_liquidatorConfig.phaseTwoRangePercent));
-    console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-
-    pair = ILiquidationPair(
-      address(
-        pairFactory.createPair(
-          ILiquidationSource(address(vault)),
-          address(prizeToken),
-          address(vault),
-          _liquidatorConfig.initialTargetExchangeRate,
-          _liquidatorConfig.phaseTwoDurationPercent,
-          _liquidatorConfig.phaseTwoRangePercent
-        )
-      )
-    );
-    vault.setLiquidationPair(LiquidationPair(address(pair)));
-  }
-
   function initializeCgdaLiquidator(
     CgdaLiquidatorConfig memory _liquidatorConfig
   ) external virtual {
-    CgdaLiquidationPairFactory pairFactory = new CgdaLiquidationPairFactory();
-    CgdaLiquidationRouter cgdaRouter = new CgdaLiquidationRouter(pairFactory);
+    LiquidationPairFactory pairFactory = new LiquidationPairFactory();
+    LiquidationRouter cgdaRouter = new LiquidationRouter(pairFactory);
 
     console2.log(
       "initializeCgdaLiquidator _liquidatorConfig.exchangeRatePrizeTokenToUnderlying",
@@ -230,7 +199,7 @@ contract Environment is CommonBase, StdCheats {
     pair = ILiquidationPair(
       address(
         pairFactory.createPair(
-          CgdaILiquidationSource(address(vault)),
+          ILiquidationSource(address(vault)),
           address(prizeToken),
           address(vault),
           _liquidatorConfig.periodLength,
@@ -238,7 +207,8 @@ contract Environment is CommonBase, StdCheats {
           _liquidatorConfig.targetFirstSaleTime,
           _liquidatorConfig.decayConstant,
           _initialAmountIn,
-          _initialAmountOut
+          _initialAmountOut,
+          1e18
         )
       )
     );

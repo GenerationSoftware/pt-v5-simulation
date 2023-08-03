@@ -54,16 +54,27 @@ contract DrawAgent {
 
       if (rewards[0] > minimum) {
         rngAuction.startRngRequest(address(this));
+        uint profit = rewards[0] - minimum;
+        // console2.log("RngAuction TRIGGERED!!!!!!!!!!!!!! profit:", profit);
+      } else {
+        // console2.log("RngAuction does not meet minimum", rewards[0], minimum);
       }
     }
 
-    if (rngAuction.isRngComplete() && !rngRelayAuction.isSequenceCompleted(lastSequenceId)) { // then get relay
+    // console2.log("rngAuction.lastSequenceId(): ", rngAuction.lastSequenceId());
+    // if (rngAuction.lastSequenceId() > 0) {
+    //   console2.log("rngAuction.isRngComplete():", rngAuction.isRngComplete());
+    //   console2.log("rngRelayAuction.isSequenceCompleted(lastSequenceId): ", rngRelayAuction.isSequenceCompleted(lastSequenceId));
+    // }
+
+    if (lastSequenceId > 0 && rngAuction.isRngComplete() && !rngRelayAuction.isSequenceCompleted(lastSequenceId)) { // then get relay
+
       (uint randomNumber, uint64 completedAt) = rngAuction.getRngResults();
       
       // compute reward
       AuctionResult memory rngAuctionResult = rngAuction.getLastAuctionResult();
 
-      uint elapsedTime = block.timestamp - completedAt;
+      uint64 elapsedTime = uint64(block.timestamp - completedAt);
 
       UD2x18 rewardFraction = rngRelayAuction.computeRewardFraction(elapsedTime);
 
@@ -76,10 +87,15 @@ contract DrawAgent {
       auctionResults[0] = rngAuctionResult;
       auctionResults[1] = auctionResult;
 
-      uint[] rewards = rngRelayAuction.computeRewards(auctionResults);
+      uint[] memory rewards = rngRelayAuction.computeRewards(auctionResults);
 
       if (rewards[1] > minimum) {
         rngAuctionRelayerDirect.relay(rngRelayAuction, address(this));
+        drawCount++;
+        uint profit = rewards[1] - minimum;
+        // console2.log("RngRelayAuction TRIGGERED!!!!!!!!!!!!!! profit: ", profit);
+      } else {
+        // console2.log("RngRelayAuction does not meet minimum", rewards[1], minimum);
       }
     }
 
