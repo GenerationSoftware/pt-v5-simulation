@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.17;
+pragma solidity 0.8.19;
 
 import "forge-std/console2.sol";
 
 import "forge-std/Test.sol";
 
-import { TieredLiquidityDistributor } from "v5-prize-pool/abstract/TieredLiquidityDistributor.sol";
-import { Environment, PrizePool, Vault, GasConfig, Claimer } from "src/Environment.sol";
-import { ClaimerAgent } from "src/ClaimerAgent.sol";
+import { TieredLiquidityDistributor } from "pt-v5-prize-pool/abstract/TieredLiquidityDistributor.sol";
+import { Environment, PrizePool, Vault, GasConfig, Claimer } from "../src/Environment.sol";
+import { ClaimerAgent } from "../src/ClaimerAgent.sol";
 
 contract ClaimerAgentTest is Test {
   Environment env = Environment(address(0xffff1));

@@ -1,8 +1,8 @@
-pragma solidity 0.8.17;
+pragma solidity 0.8.19;
 
 import "forge-std/console2.sol";
 
-import { Environment, GasConfig } from "src/Environment.sol";
+import { Environment, GasConfig } from "./Environment.sol";
 
 contract DrawAgent {
   Environment public env;

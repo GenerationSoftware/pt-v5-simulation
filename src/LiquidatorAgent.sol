@@ -1,11 +1,11 @@
-pragma solidity 0.8.17;
+pragma solidity 0.8.19;
 
 import "forge-std/console2.sol";
 import { Vm } from "forge-std/Vm.sol";
 
-import { Environment } from "src/Environment.sol";
+import { Environment } from "./Environment.sol";
 import { SD59x18, wrap, convert, uMAX_SD59x18 } from "prb-math/SD59x18.sol";
-import { LiquidationPair } from "v5-liquidator/LiquidationPair.sol";
+import { LiquidationPair } from "pt-v5-cgda-liquidator/LiquidationPair.sol";
 
 contract LiquidatorAgent {
   Environment public env;
@@ -57,10 +57,7 @@ contract LiquidatorAgent {
 
       totalApproxProfit += profit;
 
-      SD59x18 amountOutInPrizeTokens = convert(int(amountOut)).mul(
-        exchangeRatePrizeTokenToUnderlying
-      );
-      SD59x18 efficiency = convert(int(amountIn)).div(amountOutInPrizeTokens);
+      SD59x18 efficiency = convert(int(amountIn)).div(convert(int(amountOutInPrizeTokens)));
       uint efficiencyPercent = uint(convert(efficiency.mul(convert(100))));
 
       uint elapsedSinceDrawEnded = block.timestamp - env.prizePool().lastClosedDrawEndedAt();

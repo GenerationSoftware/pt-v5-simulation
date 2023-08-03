@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.17;
+pragma solidity 0.8.19;
 
 import { console2 } from "forge-std/console2.sol";
-import { SimulatorTest } from "src/SimulatorTest.sol";
 
 import { UD2x18 } from "prb-math/UD2x18.sol";
 import { SD1x18 } from "prb-math/SD1x18.sol";
 import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
-import { TwabLib } from "v5-twab-controller/libraries/TwabLib.sol";
 
-import { Environment, PrizePoolConfig, CgdaLiquidatorConfig, DaLiquidatorConfig, ClaimerConfig, GasConfig } from "src/Environment.sol";
-
-import { ClaimerAgent } from "src/ClaimerAgent.sol";
-import { DrawAgent } from "src/DrawAgent.sol";
-import { LiquidatorAgent } from "src/LiquidatorAgent.sol";
-import { SD59x18OverTime } from "src/SD59x18OverTime.sol";
-import { UintOverTime } from "src/UintOverTime.sol";
+import { Environment, PrizePoolConfig, CgdaLiquidatorConfig, DaLiquidatorConfig, ClaimerConfig, GasConfig } from "../src/Environment.sol";
+import { SimulatorTest } from "../src/SimulatorTest.sol";
+import { ClaimerAgent } from "../src/ClaimerAgent.sol";
+import { DrawAgent } from "../src/DrawAgent.sol";
+import { LiquidatorAgent } from "../src/LiquidatorAgent.sol";
+import { SD59x18OverTime } from "../src/SD59x18OverTime.sol";
+import { UintOverTime } from "../src/UintOverTime.sol";
 
 contract EthereumTest is SimulatorTest {
   string simulatorCsv;

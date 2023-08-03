@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.17;
+pragma solidity 0.8.19;
 
 import "forge-std/Test.sol";
 
-import { SD59x18OverTime, SD59x18 } from "src/SD59x18OverTime.sol";
+import { SD59x18OverTime, SD59x18 } from "../src/SD59x18OverTime.sol";
 
 contract SD59x18OverTimeTest is Test {
   SD59x18OverTime rates;
