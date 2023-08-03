@@ -19,3 +19,4 @@ pt-v5-vault-test/=lib/pt-v5-vault/test/
 ring-buffer-lib/=lib/pt-v5-twab-controller/lib/ring-buffer-lib/src/
 rng/=lib/pt-v5-draw-auction/lib/pooltogether-rng-contracts/contracts/
 solmate/=lib/pt-v5-claimer/lib/solmate/src/
+pt-v5-rng-contracts=lib/pt-v5-rng-contracts/contracts/

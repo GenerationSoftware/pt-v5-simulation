@@ -12,6 +12,8 @@ import { Vault } from "pt-v5-vault/Vault.sol";
 import { VaultFactory } from "pt-v5-vault/VaultFactory.sol";
 import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 
+import { RNGBlockhash } from "pt-v5-rng-contracts/RNGBlockhash.sol";
+import { RNGInterface } from "pt-v5-rng-contracts/RNGInterface.sol";
 import { RngAuction } from "pt-v5-draw-auction/RngAuction.sol";
 import { RngAuctionRelayerDirect } from "pt-v5-draw-auction/RngAuctionRelayerDirect.sol";
 import { RngRelayAuction } from "pt-v5-draw-auction/RngRelayAuction.sol";
@@ -81,8 +83,11 @@ contract Environment is CommonBase, StdCheats {
   ILiquidationPair public pair;
   PrizePool public prizePool;
   Claimer public claimer;
-  DrawAuction public drawAuction;
   LiquidationRouter public router;
+  RNGInterface public rng;
+  RngAuction public rngAuction;
+  RngAuctionRelayerDirect public rngAuctionRelayerDirect;
+  RngRelayAuction public rngRelayAuction;
 
   address[] public users;
 
@@ -94,6 +99,18 @@ contract Environment is CommonBase, StdCheats {
     GasConfig memory gasConfig_
   ) public {
     _gasConfig = gasConfig_;
+    rng = new RNGBlockhash();
+    rngAuction = new RngAuction(
+      rng,
+      address(this),
+      _prizePoolConfig.drawPeriodSeconds,
+      _prizePoolConfig.firstDrawStartsAt,
+      2 hours,
+      30 minutes
+    );
+    rngAuctionRelayerDirect = new RngAuctionRelayerDirect(
+      rngAuction
+    );
     prizeToken = new ERC20PermitMock("POOL");
     underlyingToken = new ERC20PermitMock("USDC");
     yieldVault = new YieldVaultMintRate(underlyingToken, "Yearnish yUSDC", "yUSDC", address(this));
@@ -118,6 +135,14 @@ contract Environment is CommonBase, StdCheats {
     });
 
     prizePool = new PrizePool(params);
+
+    rngRelayAuction = new RngRelayAuction(
+      prizePool,
+      rngAuctionRelayerDirect,
+      2 hours,
+      30 minutes
+    );
+
     vaultFactory = new VaultFactory();
 
     claimer = new Claimer(
@@ -128,9 +153,7 @@ contract Environment is CommonBase, StdCheats {
       _claimerConfig.maxFeePortionOfPrize
     );
 
-    drawAuction = new DrawAuction(prizePool, _prizePoolConfig.drawPeriodSeconds / 8);
-
-    prizePool.setDrawManager(address(drawAuction));
+    prizePool.setDrawManager(rngRelayAuction);
 
     vault = Vault(
       vaultFactory.deployVault(
