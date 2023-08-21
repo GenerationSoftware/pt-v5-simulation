@@ -32,14 +32,12 @@ import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
 import { YieldVaultMintRate } from "./YieldVaultMintRate.sol";
 
 struct PrizePoolConfig {
-  uint32 grandPrizePeriodDraws;
+  uint24 grandPrizePeriodDraws;
   uint32 drawPeriodSeconds;
   uint64 firstDrawStartsAt;
   uint8 numberOfTiers;
   uint8 tierShares;
-  uint8 canaryShares;
   uint8 reserveShares;
-  UD2x18 claimExpansionThreshold;
   SD1x18 smoothing;
 }
 
@@ -62,6 +60,11 @@ struct ClaimerConfig {
   uint256 maximumFee;
   uint256 timeToReachMaxFee;
   UD2x18 maxFeePortionOfPrize;
+}
+
+struct RngAuctionConfig {
+  uint32 auctionDuration;
+  uint64 targetAuctionTime;
 }
 
 struct GasConfig {
@@ -96,6 +99,7 @@ contract Environment is CommonBase, StdCheats {
   function initialize(
     PrizePoolConfig memory _prizePoolConfig,
     ClaimerConfig memory _claimerConfig,
+    RngAuctionConfig memory _rngAuctionConfig,
     GasConfig memory gasConfig_
   ) public {
     _gasConfig = gasConfig_;
@@ -105,8 +109,8 @@ contract Environment is CommonBase, StdCheats {
       address(this),
       _prizePoolConfig.drawPeriodSeconds,
       _prizePoolConfig.firstDrawStartsAt,
-      6 hours,
-      1 hours
+      _rngAuctionConfig.auctionDuration,
+      _rngAuctionConfig.targetAuctionTime
     );
     rngAuctionRelayerDirect = new RngAuctionRelayerDirect(
       rngAuction
@@ -123,14 +127,12 @@ contract Environment is CommonBase, StdCheats {
       prizeToken: prizeToken,
       twabController: twab,
       drawManager: address(0),
-      //   grandPrizePeriodDraws: _prizePoolConfig.grandPrizePeriodDraws,
+      grandPrizePeriodDraws: _prizePoolConfig.grandPrizePeriodDraws,
       drawPeriodSeconds: _prizePoolConfig.drawPeriodSeconds,
       firstDrawStartsAt: _prizePoolConfig.firstDrawStartsAt,
       numberOfTiers: _prizePoolConfig.numberOfTiers,
       tierShares: _prizePoolConfig.tierShares,
-      canaryShares: _prizePoolConfig.canaryShares,
       reserveShares: _prizePoolConfig.reserveShares,
-      claimExpansionThreshold: _prizePoolConfig.claimExpansionThreshold,
       smoothing: _prizePoolConfig.smoothing
     });
 
@@ -139,8 +141,8 @@ contract Environment is CommonBase, StdCheats {
     rngRelayAuction = new RngRelayAuction(
       prizePool,
       address(rngAuctionRelayerDirect),
-      6 hours,
-      1 hours
+      _rngAuctionConfig.auctionDuration,
+      _rngAuctionConfig.targetAuctionTime
     );
 
     vaultFactory = new VaultFactory();
@@ -177,13 +179,13 @@ contract Environment is CommonBase, StdCheats {
     LiquidationPairFactory pairFactory = new LiquidationPairFactory();
     LiquidationRouter cgdaRouter = new LiquidationRouter(pairFactory);
 
-    console2.log(
-      "initializeCgdaLiquidator _liquidatorConfig.exchangeRatePrizeTokenToUnderlying",
-      _liquidatorConfig.exchangeRatePrizeTokenToUnderlying.unwrap()
-    );
+    // console2.log(
+    //   "initializeCgdaLiquidator _liquidatorConfig.exchangeRatePrizeTokenToUnderlying",
+    //   _liquidatorConfig.exchangeRatePrizeTokenToUnderlying.unwrap()
+    // );
 
-    uint112 _initialAmountIn = 1e18; // 1 POOL
-    uint112 _initialAmountOut = uint112(
+    uint104 _initialAmountIn = 1e18; // 1 POOL
+    uint104 _initialAmountOut = uint104(
       uint(
         convert(
           convert(int(uint(_initialAmountIn))).div(
@@ -193,8 +195,8 @@ contract Environment is CommonBase, StdCheats {
       )
     );
 
-    console2.log("initializeCgdaLiquidator _initialAmountIn", _initialAmountIn);
-    console2.log("initializeCgdaLiquidator _initialAmountOut", _initialAmountOut);
+    // console2.log("initializeCgdaLiquidator _initialAmountIn", _initialAmountIn);
+    // console2.log("initializeCgdaLiquidator _initialAmountOut", _initialAmountOut);
 
     pair = ILiquidationPair(
       address(

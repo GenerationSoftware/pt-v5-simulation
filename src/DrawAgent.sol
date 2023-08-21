@@ -55,7 +55,8 @@ contract DrawAgent {
       if (rewards[0] > minimum) {
         rngAuction.startRngRequest(address(this));
         uint profit = rewards[0] - minimum;
-        // console2.log("RngAuction TRIGGERED!!!!!!!!!!!!!! profit:", profit);
+        uint delay = block.timestamp - env.prizePool().openDrawEndsAt();
+        // console2.log("RngAuction !!!!!!!!!!!!!! time after draw end:", delay);
       } else {
         // console2.log("RngAuction does not meet minimum", rewards[0], minimum);
       }
@@ -67,7 +68,10 @@ contract DrawAgent {
     //   console2.log("rngRelayAuction.isSequenceCompleted(lastSequenceId): ", rngRelayAuction.isSequenceCompleted(lastSequenceId));
     // }
 
-    if (lastSequenceId > 0 && rngAuction.isRngComplete() && !rngRelayAuction.isSequenceCompleted(lastSequenceId)) { // then get relay
+    if (lastSequenceId > 0 && // if there is a last sequence id
+        rngAuction.isRngComplete() && // and it's ready
+        !rngRelayAuction.isSequenceCompleted(lastSequenceId)
+    ) { // if the last sequence is not completed
 
       (uint randomNumber, uint64 completedAt) = rngAuction.getRngResults();
       
@@ -75,6 +79,11 @@ contract DrawAgent {
       AuctionResult memory rngAuctionResult = rngAuction.getLastAuctionResult();
 
       uint64 elapsedTime = uint64(block.timestamp - completedAt);
+      // console2.log("lastSequenceId", lastSequenceId);
+      // console2.log("env.prizePool().lastClosedDrawId()", env.prizePool().getLastClosedDrawId());
+      // console2.log("env.prizePool().openDrawEndsAt()", env.prizePool().openDrawEndsAt());
+      // console2.log("completedAt", completedAt);
+      // console2.log("block.timestamp", block.timestamp);
 
       UD2x18 rewardFraction = rngRelayAuction.computeRewardFraction(elapsedTime);
 
@@ -89,11 +98,14 @@ contract DrawAgent {
 
       uint[] memory rewards = rngRelayAuction.computeRewards(auctionResults);
 
-      if (rewards[1] > minimum) {
-        rngAuctionRelayerDirect.relay(rngRelayAuction, address(this));
+      uint profit = rewards[1] > minimum ? rewards[1] - minimum : 0;
+
+      if (profit > cost) {
+        // uint delay = block.timestamp - env.prizePool().openDrawEndsAt();
+        // uint profit = rewards[1] - minimum;
         drawCount++;
-        uint profit = rewards[1] - minimum;
-        // console2.log("RngRelayAuction TRIGGERED!!!!!!!!!!!!!! profit: ", profit);
+        rngAuctionRelayerDirect.relay(rngRelayAuction, address(this));
+        // console2.log("RngRelayAuction -----------> time after draw end:", delay);
       } else {
         // console2.log("RngRelayAuction does not meet minimum", rewards[1], minimum);
       }

@@ -12,6 +12,8 @@ out/
 .envrc
 node_modules
 
+.env
+.envrc
 .history
 
 data/*

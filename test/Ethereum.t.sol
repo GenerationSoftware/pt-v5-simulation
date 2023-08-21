@@ -7,7 +7,7 @@ import { UD2x18 } from "prb-math/UD2x18.sol";
 import { SD1x18 } from "prb-math/SD1x18.sol";
 import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
 
-import { Environment, PrizePoolConfig, CgdaLiquidatorConfig, DaLiquidatorConfig, ClaimerConfig, GasConfig } from "../src/Environment.sol";
+import { Environment, PrizePoolConfig, CgdaLiquidatorConfig, DaLiquidatorConfig, ClaimerConfig, RngAuctionConfig, GasConfig } from "../src/Environment.sol";
 import { SimulatorTest } from "../src/SimulatorTest.sol";
 import { ClaimerAgent } from "../src/ClaimerAgent.sol";
 import { DrawAgent } from "../src/DrawAgent.sol";
@@ -18,15 +18,15 @@ import { UintOverTime } from "../src/UintOverTime.sol";
 contract EthereumTest is SimulatorTest {
   string simulatorCsv;
 
-  uint32 drawPeriodSeconds = 1 days;
-  uint32 grandPrizePeriodDraws = 365;
+  uint32 drawPeriodSeconds = 30 days;
+  uint24 grandPrizePeriodDraws = 12;
 
-  uint duration = 30 days + 0.5 days;
-  uint timeStep = 5 minutes;
+  uint duration;
+  uint timeStep = 1 days;
   uint startTime;
 
   uint totalValueLocked;
-  uint apr = 0.015e18;
+  uint apr = 0.029e18;
   uint numUsers = 1;
 
   SD59x18OverTime public exchangeRateOverTime; // Prize Token to Underlying Token
@@ -34,6 +34,7 @@ contract EthereumTest is SimulatorTest {
 
   PrizePoolConfig public prizePoolConfig;
   ClaimerConfig public claimerConfig;
+  RngAuctionConfig public rngAuctionConfig;
   GasConfig public gasConfig;
   Environment public env;
 
@@ -41,8 +42,10 @@ contract EthereumTest is SimulatorTest {
   LiquidatorAgent public liquidatorAgent;
   DrawAgent public drawAgent;
 
+  uint verbosity = 0;
+
   function setUp() public {
-    startTime = block.timestamp + 400 days;
+    startTime = block.timestamp + 10000 days;
     vm.warp(startTime);
 
     totalValueLocked = vm.envUint("TVL") * 1e18;
@@ -50,6 +53,12 @@ contract EthereumTest is SimulatorTest {
     if (totalValueLocked == 0) {
       revert("Please define TVL env var > 0");
     }
+
+    verbosity = vm.envUint("VERBOSITY");
+    console2.log("VERBOSITY: ", verbosity);
+
+    duration = vm.envUint("DURATION");
+    console2.log("DURATION: ", duration);
 
     initOutputFileCsv();
 
@@ -69,17 +78,20 @@ contract EthereumTest is SimulatorTest {
       firstDrawStartsAt: uint64(startTime),
       numberOfTiers: 3,
       tierShares: 100,
-      canaryShares: 30,
-      reserveShares: 50,
-      claimExpansionThreshold: UD2x18.wrap(0.8e18),
+      reserveShares: 100,
       smoothing: SD1x18.wrap(0.3e18)
     });
 
     claimerConfig = ClaimerConfig({
       minimumFee: 0.1e18,
       maximumFee: 1000e18,
-      timeToReachMaxFee: drawPeriodSeconds / 7,
+      timeToReachMaxFee: drawPeriodSeconds/2,
       maxFeePortionOfPrize: UD2x18.wrap(0.2e18)
+    });
+
+    rngAuctionConfig = RngAuctionConfig({
+      auctionDuration: drawPeriodSeconds / 4, // six hours
+      targetAuctionTime: drawPeriodSeconds / 24 // first hour
     });
 
     // gas price is currently 50 gwei of ether.
@@ -97,14 +109,14 @@ contract EthereumTest is SimulatorTest {
     });
 
     env = new Environment();
-    env.initialize(prizePoolConfig, claimerConfig, gasConfig);
+    env.initialize(prizePoolConfig, claimerConfig, rngAuctionConfig, gasConfig);
 
     ///////////////// Liquidator /////////////////
     // Initialize one of the liquidators. Comment the other out.
 
     env.initializeCgdaLiquidator(
       CgdaLiquidatorConfig({
-        decayConstant: wrap(0.001e18),
+        decayConstant: wrap(0.000015e18),
         exchangeRatePrizeTokenToUnderlying: exchangeRateOverTime.get(startTime),
         periodLength: drawPeriodSeconds,
         periodOffset: uint32(startTime),
@@ -114,7 +126,7 @@ contract EthereumTest is SimulatorTest {
 
     //////////////////////////////////////////////
 
-    claimerAgent = new ClaimerAgent(env, vm);
+    claimerAgent = new ClaimerAgent(env, vm, verbosity);
     liquidatorAgent = new LiquidatorAgent(env, vm);
     drawAgent = new DrawAgent(env);
   }

@@ -51,8 +51,8 @@ contract LiquidatorAgent {
         LiquidationPair(address(env.pair())),
         address(this),
         amountOut,
-        uint(uMAX_SD59x18 / 1e18) // NOTE: uMAX_SD59x18/1e18 for DaLiquidator
-        // type(uint).max // NOTE: type(uint).max for CgdaLiquidator
+        uint(uMAX_SD59x18 / 1e18), // NOTE: uMAX_SD59x18/1e18 for DaLiquidator
+        block.timestamp + 10
       );
 
       totalApproxProfit += profit;

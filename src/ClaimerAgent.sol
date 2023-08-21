@@ -40,9 +40,12 @@ contract ClaimerAgent {
 
   uint constant INSPECT_DRAW_ID = 400;
 
-  constructor(Environment _env, Vm _vm) {
+  uint logVerbosity;
+
+  constructor(Environment _env, Vm _vm, uint _logVerbosity) {
     env = _env;
     vm = _vm;
+    logVerbosity = _logVerbosity;
     initOutputFileCsv();
   }
 
@@ -54,8 +57,8 @@ contract ClaimerAgent {
     return drawPrizes[drawId].length;
   }
 
-  function logDraw(uint drawId) public view returns (bool) {
-    return drawId == INSPECT_DRAW_ID;
+  function isLogging(uint level) public view returns (bool) {
+    return logVerbosity >= level;
   }
 
   function check() public returns (uint256) {
@@ -73,28 +76,23 @@ contract ClaimerAgent {
 
     uint8 numTiers = env.prizePool().numberOfTiers();
 
-    if (logDraw(drawId)) {
-      console2.log("\tClaim cost (cents): ", claimCostInPrizeTokens / 1e16);
-    }
-
+    // if (isLogging()) {
+    //   console2.log("\tClaim cost (cents): ", claimCostInPrizeTokens / 1e16);
+    // }
     uint256 remainingPrizes = drawPrizes[computedDrawId].length - nextPrizeIndex;
     while (remainingPrizes > 0) {
       (uint8 tier, uint256 tierPrizes) = countContiguousTierPrizes(nextPrizeIndex, remainingPrizes);
 
-      uint claimFees;
       uint targetClaimCount;
       // see if any are worth claiming
-      for (uint i = 1; i < tierPrizes + 1; i++) {
-        uint nextClaimFees = env.claimer().computeTotalFees(tier, i);
-        if (logDraw(drawId)) {
-          // console2.log("\tclaim count/fee", i, nextClaimFees, block.timestamp);
-        }
-        if (nextClaimFees - claimFees > claimCostInPrizeTokens) {
-          targetClaimCount = i;
-          claimFees = nextClaimFees;
-        } else {
-          break;
-        }
+      uint claimFees = env.claimer().computeTotalFees(tier, tierPrizes);
+      uint cost = tierPrizes * claimCostInPrizeTokens;
+      if (isLogging(3)) {
+        console2.log("\tclaim (fees, count, cost)", claimFees, tierPrizes, cost);
+      }
+      if (claimFees > cost) {
+        if (isLogging(3)) { console2.log("\t$ claiming (fees, count)", claimFees, tierPrizes); }
+        targetClaimCount = tierPrizes;
       }
 
       uint32 maxPrizesPerLiquidity = uint32(
@@ -106,6 +104,7 @@ contract ClaimerAgent {
           targetClaimCount -
           maxPrizesPerLiquidity;
         targetClaimCount = maxPrizesPerLiquidity;
+        console2.log("INSUFFICIENT LIQUIDITY");
       }
 
       if (targetClaimCount > 0) {
@@ -127,7 +126,7 @@ contract ClaimerAgent {
           prizeIndexLength
         );
 
-        if (logDraw(drawId)) {
+        if (isLogging(2)) {
           console2.log(
             "+++++++++++++++++++++ $$$$$$$$$$$$$$$$$$ Claiming prizes",
             tier,
@@ -147,7 +146,8 @@ contract ClaimerAgent {
           tier,
           winners,
           prizeIndices,
-          address(this)
+          address(this),
+          0
         );
         totalFeesForBatch += feesForBatch;
 
@@ -309,7 +309,7 @@ contract ClaimerAgent {
 
     // console2.log("+++++++++++++++++++++ Total Normal Prizes Computed", drawNormalTierComputedPrizeCounts[drawId][t]);
 
-    if (logDraw(drawId)) {
+    if (isLogging(2)) {
       console2.log(
         "+++++++++++++++++++++ Prize Claim Cost (cents):",
         (env.gasConfig().gasUsagePerClaim * env.gasConfig().gasPriceInPrizeTokens) / 1e16
