@@ -7,9 +7,6 @@
 [submodule "lib/pt-v5-claimer"]
 	path = lib/pt-v5-claimer
 	url = https://github.com/generationsoftware/pt-v5-claimer
-[submodule "lib/pt-v5-draw-auction"]
-	path = lib/pt-v5-draw-auction
-	url = https://github.com/generationsoftware/pt-v5-draw-auction
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
