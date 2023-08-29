@@ -13,3 +13,18 @@
 [submodule "lib/pt-v5-rng-contracts"]
 	path = lib/pt-v5-rng-contracts
 	url = https://github.com/generationsoftware/pt-v5-rng-contracts
+[submodule "lib/pt-v5-prize-pool"]
+	path = lib/pt-v5-prize-pool
+	url = git@github.com:GenerationSoftware/pt-v5-prize-pool-PRIVATE.git
+[submodule "lib/pt-v5-twab-controller"]
+	path = lib/pt-v5-twab-controller
+	url = git@github.com:GenerationSoftware/pt-v5-twab-controller-PRIVATE.git
+[submodule "lib/pt-v5-liquidator-interfaces"]
+	path = lib/pt-v5-liquidator-interfaces
+	url = git@github.com:GenerationSoftware/pt-v5-liquidator-interfaces-PRIVATE.git
+[submodule "lib/pt-v5-vault"]
+	path = lib/pt-v5-vault
+	url = git@github.com:GenerationSoftware/pt-v5-vault-PRIVATE.git
+[submodule "lib/pt-v5-cgda-liquidator"]
+	path = lib/pt-v5-cgda-liquidator
+	url = git@github.com:GenerationSoftware/pt-v5-cgda-liquidator-PRIVATE.git
