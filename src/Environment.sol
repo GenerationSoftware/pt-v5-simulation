@@ -102,16 +102,18 @@ contract Environment is CommonBase, StdCheats {
     RngAuctionConfig memory _rngAuctionConfig,
     GasConfig memory gasConfig_
   ) public {
+
     _gasConfig = gasConfig_;
     rng = new RNGBlockhash();
     rngAuction = new RngAuction(
       rng,
       address(this),
       _prizePoolConfig.drawPeriodSeconds,
-      _prizePoolConfig.firstDrawStartsAt,
+      _prizePoolConfig.firstDrawStartsAt - _prizePoolConfig.drawPeriodSeconds*10, //set into the past
       _rngAuctionConfig.auctionDuration,
       _rngAuctionConfig.targetAuctionTime
     );
+
     rngAuctionRelayerDirect = new RngAuctionRelayerDirect(
       rngAuction
     );
@@ -120,7 +122,7 @@ contract Environment is CommonBase, StdCheats {
     yieldVault = new YieldVaultMintRate(underlyingToken, "Yearnish yUSDC", "yUSDC", address(this));
     twab = new TwabController(
       _prizePoolConfig.drawPeriodSeconds,
-      uint32(_prizePoolConfig.firstDrawStartsAt)
+      uint32(_prizePoolConfig.firstDrawStartsAt - _prizePoolConfig.drawPeriodSeconds*10) //set into the past
     );
 
     ConstructorParams memory params = ConstructorParams({

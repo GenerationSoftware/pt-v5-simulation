@@ -75,7 +75,7 @@ contract EthereumTest is SimulatorTest {
     prizePoolConfig = PrizePoolConfig({
       grandPrizePeriodDraws: grandPrizePeriodDraws,
       drawPeriodSeconds: drawPeriodSeconds,
-      firstDrawStartsAt: uint64(startTime),
+      firstDrawStartsAt: uint64(startTime + drawPeriodSeconds),
       numberOfTiers: 3,
       tierShares: 100,
       reserveShares: 100,
@@ -284,7 +284,7 @@ contract EthereumTest is SimulatorTest {
   }
 
   function printDraws() public {
-    uint totalDraws = duration / drawPeriodSeconds;
+    uint totalDraws = (block.timestamp - prizePoolConfig.firstDrawStartsAt) / drawPeriodSeconds;
     uint missedDraws = (totalDraws) - drawAgent.drawCount();
     console2.log("");
     console2.log("Expected draws", totalDraws);

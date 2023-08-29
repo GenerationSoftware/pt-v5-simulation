@@ -101,12 +101,15 @@ contract DrawAgent {
       uint profit = rewards[1] > minimum ? rewards[1] - minimum : 0;
 
       if (profit > cost) {
-        uint sinceClosed = block.timestamp - env.prizePool().lastClosedDrawEndedAt();
+        uint sinceClosed;
+        if (env.prizePool().getLastClosedDrawId() != 0) {
+          sinceClosed = block.timestamp - env.prizePool().lastClosedDrawEndedAt();
+        }
         // uint delay = block.timestamp - env.prizePool().openDrawEndsAt();
         // uint profit = rewards[1] - minimum;
         drawCount++;
         rngAuctionRelayerDirect.relay(rngRelayAuction, address(this));
-        console2.log("RngRelayAuction -----------> time since last draw ended:", sinceClosed);
+        console2.log("RngRelayAuction -----------> current draw id %s, time since last draw ended:", env.prizePool().getLastClosedDrawId(), sinceClosed);
       } else {
         // console2.log("RngRelayAuction does not meet minimum", rewards[1], minimum);
       }
