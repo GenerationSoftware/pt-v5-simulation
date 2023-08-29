@@ -28,3 +28,6 @@
 [submodule "lib/pt-v5-cgda-liquidator"]
 	path = lib/pt-v5-cgda-liquidator
 	url = git@github.com:GenerationSoftware/pt-v5-cgda-liquidator-PRIVATE.git
+[submodule "lib/pt-v5-draw-auction"]
+	path = lib/pt-v5-draw-auction
+	url = git@github.com:GenerationSoftware/pt-v5-draw-auction.git

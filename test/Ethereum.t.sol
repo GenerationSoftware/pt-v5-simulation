@@ -18,15 +18,15 @@ import { UintOverTime } from "../src/UintOverTime.sol";
 contract EthereumTest is SimulatorTest {
   string simulatorCsv;
 
-  uint32 drawPeriodSeconds = 30 days;
-  uint24 grandPrizePeriodDraws = 12;
+  uint32 drawPeriodSeconds = 1 days;
+  uint24 grandPrizePeriodDraws = 365;
 
   uint duration;
-  uint timeStep = 1 days;
+  uint timeStep = 20 minutes;
   uint startTime;
 
   uint totalValueLocked;
-  uint apr = 0.029e18;
+  uint apr = 0.025e18;
   uint numUsers = 1;
 
   SD59x18OverTime public exchangeRateOverTime; // Prize Token to Underlying Token
@@ -83,9 +83,9 @@ contract EthereumTest is SimulatorTest {
     });
 
     claimerConfig = ClaimerConfig({
-      minimumFee: 0.1e18,
-      maximumFee: 1000e18,
-      timeToReachMaxFee: drawPeriodSeconds/2,
+      minimumFee: 0.0001e18,
+      maximumFee: 10000e18,
+      timeToReachMaxFee: drawPeriodSeconds/4,
       maxFeePortionOfPrize: UD2x18.wrap(0.2e18)
     });
 
@@ -116,7 +116,7 @@ contract EthereumTest is SimulatorTest {
 
     env.initializeCgdaLiquidator(
       CgdaLiquidatorConfig({
-        decayConstant: wrap(0.000015e18),
+        decayConstant: wrap(0.00015e18),
         exchangeRatePrizeTokenToUnderlying: exchangeRateOverTime.get(startTime),
         periodLength: drawPeriodSeconds,
         periodOffset: uint32(startTime),
@@ -228,10 +228,10 @@ contract EthereumTest is SimulatorTest {
       vm.roll(block.number+1);
 
       // Cache data at beginning of tick
-      uint availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));
-      uint availableVaultShares = env.pair().maxAmountOut();
-      uint requiredPrizeTokens = env.pair().computeExactAmountIn(availableVaultShares);
-      uint prizePoolReserve = env.prizePool().reserve();
+      // uint availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));
+      // uint availableVaultShares = env.pair().maxAmountOut();
+      // uint requiredPrizeTokens = env.pair().computeExactAmountIn(availableVaultShares);
+      // uint prizePoolReserve = env.prizePool().reserve();
 
       // uint unrealizedReserve = env.prizePool().reserveForNextDraw();
       // string memory valuesPart1 = string.concat(
@@ -260,18 +260,18 @@ contract EthereumTest is SimulatorTest {
       drawAgent.check();
 
       // Log data
-      logToCsv(
-        SimulatorLog({
-          drawId: env.prizePool().getLastClosedDrawId(),
-          timestamp: block.timestamp,
-          availableYield: availableYield,
-          availableVaultShares: availableVaultShares,
-          requiredPrizeTokens: requiredPrizeTokens,
-          prizePoolReserve: prizePoolReserve,
-          apr: aprOverTime.get(i),
-          tvl: totalValueLocked
-        })
-      );
+      // logToCsv(
+      //   SimulatorLog({
+      //     drawId: env.prizePool().getLastClosedDrawId(),
+      //     timestamp: block.timestamp,
+      //     availableYield: availableYield,
+      //     availableVaultShares: availableVaultShares,
+      //     requiredPrizeTokens: requiredPrizeTokens,
+      //     prizePoolReserve: prizePoolReserve,
+      //     apr: aprOverTime.get(i),
+      //     tvl: totalValueLocked
+      //   })
+      // );
     }
 
     printDraws();

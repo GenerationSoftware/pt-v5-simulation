@@ -30,7 +30,7 @@ contract LiquidatorAgent {
     // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ elapsed", env.pair().getElapsedTime());
 
     uint amountOut = maxAmountOut;
-    uint amountIn = env.pair().computeExactAmountIn(amountOut);
+    uint amountIn = amountOut > 0 ? env.pair().computeExactAmountIn(amountOut) : 0;
     // console2.log("amountOut %s costs %s", amountOut, amountIn);
     uint profit;
 

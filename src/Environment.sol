@@ -142,7 +142,8 @@ contract Environment is CommonBase, StdCheats {
       prizePool,
       address(rngAuctionRelayerDirect),
       _rngAuctionConfig.auctionDuration,
-      _rngAuctionConfig.targetAuctionTime
+      _rngAuctionConfig.targetAuctionTime,
+      10000e18
     );
 
     vaultFactory = new VaultFactory();
