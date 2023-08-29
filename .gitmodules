@@ -13,9 +13,6 @@
 [submodule "lib/pt-v5-draw-auction"]
 	path = lib/pt-v5-draw-auction
 	url = https://github.com/generationsoftware/pt-v5-draw-auction
-[submodule "lib/pt-v5-twab-controller"]
-	path = lib/pt-v5-twab-controller
-	url = https://github.com/generationsoftware/pt-v5-twab-controller
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
