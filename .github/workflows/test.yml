@@ -1,0 +1,39 @@
+name: test
+
+on: ["push", "pull_request"]
+
+env:
+  FOUNDRY_PROFILE: ci
+
+jobs:
+  forge:
+    strategy:
+      fail-fast: true
+    permissions:
+      pull-requests: write
+
+    name: Foundry project
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Run Forge build
+        run: |
+          forge --version
+          forge build
+        id: build
+
+      - name: Run Forge test
+        env:
+          TVL: ${{ vars.TVL }}
+          DURATION: ${{ vars.DURATION }}
+          VERBOSITY: ${{ vars.VERBOSITY }}
+        run: forge test
+        id: test

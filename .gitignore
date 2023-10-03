@@ -15,4 +15,4 @@ node_modules
 .envrc
 .history
 
-data/*
+data/*.csv
