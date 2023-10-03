@@ -68,13 +68,15 @@ contract DrawAgent {
     //   console2.log("rngRelayAuction.isSequenceCompleted(lastSequenceId): ", rngRelayAuction.isSequenceCompleted(lastSequenceId));
     // }
 
-    if (lastSequenceId > 0 && // if there is a last sequence id
-        rngAuction.isRngComplete() && // and it's ready
-        !rngRelayAuction.isSequenceCompleted(lastSequenceId)
-    ) { // if the last sequence is not completed
+    if (
+      lastSequenceId > 0 && // if there is a last sequence id
+      rngAuction.isRngComplete() && // and it's ready
+      !rngRelayAuction.isSequenceCompleted(lastSequenceId)
+    ) {
+      // if the last sequence is not completed
 
       (uint randomNumber, uint64 completedAt) = rngAuction.getRngResults();
-      
+
       // compute reward
       AuctionResult memory rngAuctionResult = rngAuction.getLastAuctionResult();
 
@@ -109,11 +111,14 @@ contract DrawAgent {
         // uint profit = rewards[1] - minimum;
         drawCount++;
         rngAuctionRelayerDirect.relay(rngRelayAuction, address(this));
-        console2.log("RngRelayAuction -----------> current draw id %s, time since last draw ended:", env.prizePool().getLastClosedDrawId(), sinceClosed);
+        console2.log(
+          "RngRelayAuction -----------> current draw id %s, time since last draw ended:",
+          env.prizePool().getLastClosedDrawId(),
+          sinceClosed
+        );
       } else {
         // console2.log("RngRelayAuction does not meet minimum", rewards[1], minimum);
       }
     }
-
   }
 }

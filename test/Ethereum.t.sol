@@ -7,7 +7,15 @@ import { UD2x18 } from "prb-math/UD2x18.sol";
 import { SD1x18 } from "prb-math/SD1x18.sol";
 import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
 
-import { Environment, PrizePoolConfig, CgdaLiquidatorConfig, DaLiquidatorConfig, ClaimerConfig, RngAuctionConfig, GasConfig } from "../src/Environment.sol";
+import {
+  Environment,
+  PrizePoolConfig,
+  CgdaLiquidatorConfig,
+  DaLiquidatorConfig,
+  ClaimerConfig,
+  RngAuctionConfig,
+  GasConfig
+} from "../src/Environment.sol";
 import { SimulatorTest } from "../src/SimulatorTest.sol";
 import { ClaimerAgent } from "../src/ClaimerAgent.sol";
 import { DrawAgent } from "../src/DrawAgent.sol";
@@ -85,7 +93,7 @@ contract EthereumTest is SimulatorTest {
     claimerConfig = ClaimerConfig({
       minimumFee: 0.0001e18,
       maximumFee: 10000e18,
-      timeToReachMaxFee: drawPeriodSeconds/4,
+      timeToReachMaxFee: drawPeriodSeconds / 4,
       maxFeePortionOfPrize: UD2x18.wrap(0.2e18)
     });
 
@@ -225,7 +233,7 @@ contract EthereumTest is SimulatorTest {
 
     for (uint i = startTime; i < startTime + duration; i += timeStep) {
       vm.warp(i);
-      vm.roll(block.number+1);
+      vm.roll(block.number + 1);
 
       // Cache data at beginning of tick
       // uint availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));
