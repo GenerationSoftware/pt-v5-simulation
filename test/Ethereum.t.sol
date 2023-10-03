@@ -29,13 +29,13 @@ contract EthereumTest is SimulatorTest {
   uint32 drawPeriodSeconds = 1 days;
   uint24 grandPrizePeriodDraws = 365;
 
-  uint duration;
-  uint timeStep = 20 minutes;
-  uint startTime;
+  uint256 duration;
+  uint256 timeStep = 20 minutes;
+  uint256 startTime;
 
-  uint totalValueLocked;
-  uint apr = 0.025e18;
-  uint numUsers = 1;
+  uint256 totalValueLocked;
+  uint256 apr = 0.025e18;
+  uint256 numUsers = 1;
 
   SD59x18OverTime public exchangeRateOverTime; // Prize Token to Underlying Token
   UintOverTime public aprOverTime;
@@ -50,7 +50,7 @@ contract EthereumTest is SimulatorTest {
   LiquidatorAgent public liquidatorAgent;
   DrawAgent public drawAgent;
 
-  uint verbosity = 0;
+  uint256 verbosity = 0;
 
   function setUp() public {
     startTime = block.timestamp + 10000 days;
@@ -83,7 +83,7 @@ contract EthereumTest is SimulatorTest {
     prizePoolConfig = PrizePoolConfig({
       grandPrizePeriodDraws: grandPrizePeriodDraws,
       drawPeriodSeconds: drawPeriodSeconds,
-      firstDrawStartsAt: uint64(startTime + drawPeriodSeconds),
+      firstDrawStartsAt: uint48(startTime + drawPeriodSeconds),
       numberOfTiers: 3,
       tierShares: 100,
       reserveShares: 100,
@@ -211,6 +211,7 @@ contract EthereumTest is SimulatorTest {
 
     string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicAaveApr.json");
     string memory jsonData = vm.readFile(jsonFile);
+
     // NOTE: Options for APR are: .usd or .eth
     bytes memory usdData = vm.parseJson(jsonData, "$.usd");
     HistoricApr[] memory aprData = abi.decode(usdData, (HistoricApr[]));
@@ -218,9 +219,7 @@ contract EthereumTest is SimulatorTest {
     uint256 initialTimestamp = aprData[0].timestamp;
     for (uint256 i = 0; i < aprData.length; i++) {
       HistoricApr memory rowData = aprData[i];
-      uint256 timeElapsed = rowData.timestamp - initialTimestamp;
-
-      aprOverTime.add(startTime + timeElapsed, rowData.apr);
+      aprOverTime.add(startTime + (rowData.timestamp - initialTimestamp), rowData.apr);
     }
   }
 
@@ -229,36 +228,50 @@ contract EthereumTest is SimulatorTest {
 
     env.setApr(aprOverTime.get(startTime));
 
-    // initOutputFileCsv();
+    initOutputFileCsv();
 
-    for (uint i = startTime; i < startTime + duration; i += timeStep) {
+    for (uint256 i = startTime; i < startTime + duration; i += timeStep) {
       vm.warp(i);
       vm.roll(block.number + 1);
 
       // Cache data at beginning of tick
-      // uint availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));
-      // uint availableVaultShares = env.pair().maxAmountOut();
-      // uint requiredPrizeTokens = env.pair().computeExactAmountIn(availableVaultShares);
-      // uint prizePoolReserve = env.prizePool().reserve();
+      uint256 availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));
+      uint256 availableVaultShares = env.pair().maxAmountOut();
+      uint256 prizePoolReserve = env.prizePool().reserve();
+      uint256 requiredPrizeTokens = availableVaultShares != 0
+        ? env.pair().computeExactAmountIn(availableVaultShares)
+        : 0;
 
-      // uint unrealizedReserve = env.prizePool().reserveForNextDraw();
+      // uint256 unrealizedReserve = env.prizePool().reserveForNextDraw();
       // string memory valuesPart1 = string.concat(
-      //     vm.toString(i), ",",
-      //     vm.toString(drawAgent.drawCount()), ",",
-      //     vm.toString((i - startTime) / drawPeriodSeconds), ",",
-      //     vm.toString(availableYield), ",",
-      //     vm.toString(availableYield / 1e18), ",",
-      //     vm.toString(availableVaultShares), ",",
-      //     vm.toString(availableVaultShares / 1e18), ",",
-      //     vm.toString(requiredPrizeTokens), ",",
-      //     vm.toString(requiredPrizeTokens / 1e18), ","
+      //   vm.toString(i),
+      //   ",",
+      //   vm.toString(drawAgent.drawCount()),
+      //   ",",
+      //   vm.toString((i - startTime) / drawPeriodSeconds),
+      //   ",",
+      //   vm.toString(availableYield),
+      //   ",",
+      //   vm.toString(availableYield / 1e18),
+      //   ",",
+      //   vm.toString(availableVaultShares),
+      //   ",",
+      //   vm.toString(availableVaultShares / 1e18),
+      //   ",",
+      //   vm.toString(requiredPrizeTokens),
+      //   ",",
+      //   vm.toString(requiredPrizeTokens / 1e18),
+      //   ","
       // );
+      //
       // // split to avoid stack too deep
       // string memory valuesPart2 = string.concat(
-      //     vm.toString(prizePoolReserve), ",",
-      //     vm.toString(prizePoolReserve / 1e18)
+      //   vm.toString(prizePoolReserve),
+      //   ",",
+      //   vm.toString(prizePoolReserve / 1e18)
       // );
-      // vm.writeLine(runStatsOut,string.concat(valuesPart1,valuesPart2));
+      //
+      // vm.writeLine(runStatsOut, string.concat(valuesPart1, valuesPart2));
 
       // Let agents do their thing
       env.setApr(aprOverTime.get(i));
@@ -268,18 +281,18 @@ contract EthereumTest is SimulatorTest {
       drawAgent.check();
 
       // Log data
-      // logToCsv(
-      //   SimulatorLog({
-      //     drawId: env.prizePool().getLastClosedDrawId(),
-      //     timestamp: block.timestamp,
-      //     availableYield: availableYield,
-      //     availableVaultShares: availableVaultShares,
-      //     requiredPrizeTokens: requiredPrizeTokens,
-      //     prizePoolReserve: prizePoolReserve,
-      //     apr: aprOverTime.get(i),
-      //     tvl: totalValueLocked
-      //   })
-      // );
+      logToCsv(
+        SimulatorLog({
+          drawId: env.prizePool().getLastClosedDrawId(),
+          timestamp: block.timestamp,
+          availableYield: availableYield,
+          availableVaultShares: availableVaultShares,
+          requiredPrizeTokens: requiredPrizeTokens,
+          prizePoolReserve: prizePoolReserve,
+          apr: aprOverTime.get(i),
+          tvl: totalValueLocked
+        })
+      );
     }
 
     printDraws();
@@ -292,8 +305,8 @@ contract EthereumTest is SimulatorTest {
   }
 
   function printDraws() public {
-    uint totalDraws = (block.timestamp - prizePoolConfig.firstDrawStartsAt) / drawPeriodSeconds;
-    uint missedDraws = (totalDraws) - drawAgent.drawCount();
+    uint256 totalDraws = (block.timestamp - prizePoolConfig.firstDrawStartsAt) / drawPeriodSeconds;
+    uint256 missedDraws = (totalDraws) - drawAgent.drawCount();
     console2.log("");
     console2.log("Expected draws", totalDraws);
     console2.log("Actual draws", drawAgent.drawCount());
@@ -301,9 +314,9 @@ contract EthereumTest is SimulatorTest {
   }
 
   function printMissedPrizes() public {
-    uint lastDrawId = env.prizePool().getLastClosedDrawId();
+    uint256 lastDrawId = env.prizePool().getLastClosedDrawId();
     for (uint32 drawId = 0; drawId <= lastDrawId; drawId++) {
-      uint numTiers = claimerAgent.drawNumberOfTiers(drawId);
+      uint256 numTiers = claimerAgent.drawNumberOfTiers(drawId);
       for (uint8 tier = 0; tier < numTiers; tier++) {
         uint256 prizeCount = claimerAgent.drawNormalTierComputedPrizeCounts(drawId, tier);
         uint256 claimCount = claimerAgent.drawNormalTierClaimedPrizeCounts(drawId, tier);
@@ -320,8 +333,8 @@ contract EthereumTest is SimulatorTest {
   }
 
   function printTotalNormalPrizes() public {
-    uint normalComputed = claimerAgent.totalNormalPrizesComputed();
-    uint normalClaimed = claimerAgent.totalNormalPrizesClaimed();
+    uint256 normalComputed = claimerAgent.totalNormalPrizesComputed();
+    uint256 normalClaimed = claimerAgent.totalNormalPrizesClaimed();
     console2.log("");
     console2.log("Number of normal prizes", normalComputed);
     console2.log("Number of prizes claimed", normalClaimed);
@@ -329,8 +342,8 @@ contract EthereumTest is SimulatorTest {
   }
 
   function printTotalCanaryPrizes() public {
-    uint canaryComputed = claimerAgent.totalCanaryPrizesComputed();
-    uint canaryClaimed = claimerAgent.totalCanaryPrizesClaimed();
+    uint256 canaryComputed = claimerAgent.totalCanaryPrizesComputed();
+    uint256 canaryClaimed = claimerAgent.totalCanaryPrizesClaimed();
     console2.log("");
     console2.log("Number of canary prizes", canaryComputed);
     console2.log("Number of canary prizes claimed", canaryClaimed);
@@ -338,16 +351,16 @@ contract EthereumTest is SimulatorTest {
   }
 
   function printTotalClaimFees() public {
-    uint totalPrizes = claimerAgent.totalNormalPrizesClaimed() +
+    uint256 totalPrizes = claimerAgent.totalNormalPrizesClaimed() +
       claimerAgent.totalCanaryPrizesClaimed();
-    uint averageFeePerClaim = totalPrizes > 0 ? claimerAgent.totalFees() / totalPrizes : 0;
+    uint256 averageFeePerClaim = totalPrizes > 0 ? claimerAgent.totalFees() / totalPrizes : 0;
     console2.log("");
     console2.log("Average fee per claim (cents): ", averageFeePerClaim / 1e16);
   }
 
   function printPrizeSummary() public {
     uint8 maxTiers;
-    uint lastDrawId = env.prizePool().getLastClosedDrawId();
+    uint256 lastDrawId = env.prizePool().getLastClosedDrawId();
     for (uint32 drawId = 0; drawId <= lastDrawId; drawId++) {
       uint8 numTiers = claimerAgent.drawNumberOfTiers(drawId);
       if (numTiers > maxTiers) {
@@ -386,14 +399,14 @@ contract EthereumTest is SimulatorTest {
   ////////////////////////// CSV LOGGING //////////////////////////
 
   struct SimulatorLog {
-    uint drawId;
-    uint timestamp;
-    uint availableYield;
-    uint availableVaultShares;
-    uint requiredPrizeTokens;
-    uint prizePoolReserve;
-    uint apr;
-    uint tvl;
+    uint256 drawId;
+    uint256 timestamp;
+    uint256 availableYield;
+    uint256 availableVaultShares;
+    uint256 requiredPrizeTokens;
+    uint256 prizePoolReserve;
+    uint256 apr;
+    uint256 tvl;
   }
 
   // Clears and logs the CSV headers to the file

@@ -390,35 +390,29 @@ contract ClaimerAgent {
   function logToCsv(RawClaimerLog memory log) public {
     for (uint i = 0; i < log.winners.length; i++) {
       for (uint j = 0; j < log.prizeIndices[i].length; j++) {
-        logToCsv(
-          ClaimerLog({
-            drawId: log.drawId,
-            tier: log.tier,
-            winner: log.winners[i],
-            prizeIndex: log.prizeIndices[i][j],
-            feesForBatch: log.feesForBatch
-          })
+        ClaimerLog memory claimerLog = ClaimerLog({
+          drawId: log.drawId,
+          tier: log.tier,
+          winner: log.winners[i],
+          prizeIndex: log.prizeIndices[i][j],
+          feesForBatch: log.feesForBatch
+        });
+
+        vm.writeLine(
+          claimerCsv,
+          string.concat(
+            vm.toString(claimerLog.drawId),
+            ",",
+            vm.toString(claimerLog.tier),
+            ",",
+            vm.toString(claimerLog.winner),
+            ",",
+            vm.toString(claimerLog.prizeIndex),
+            ",",
+            vm.toString(claimerLog.feesForBatch)
+          )
         );
       }
     }
   }
-
-  function logToCsv(ClaimerLog memory log) public {
-    vm.writeLine(
-      claimerCsv,
-      string.concat(
-        vm.toString(log.drawId),
-        ",",
-        vm.toString(log.tier),
-        ",",
-        vm.toString(log.winner),
-        ",",
-        vm.toString(log.prizeIndex),
-        ",",
-        vm.toString(log.feesForBatch)
-      )
-    );
-  }
-
-  /////////////////////////////////////////////////////////////////
 }

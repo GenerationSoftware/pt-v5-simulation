@@ -34,7 +34,7 @@ import { YieldVaultMintRate } from "./YieldVaultMintRate.sol";
 struct PrizePoolConfig {
   uint24 grandPrizePeriodDraws;
   uint32 drawPeriodSeconds;
-  uint64 firstDrawStartsAt;
+  uint48 firstDrawStartsAt;
   uint8 numberOfTiers;
   uint8 tierShares;
   uint8 reserveShares;
@@ -102,43 +102,39 @@ contract Environment is CommonBase, StdCheats {
     RngAuctionConfig memory _rngAuctionConfig,
     GasConfig memory gasConfig_
   ) public {
-
     _gasConfig = gasConfig_;
     rng = new RNGBlockhash();
     rngAuction = new RngAuction(
       rng,
       address(this),
       _prizePoolConfig.drawPeriodSeconds,
-      _prizePoolConfig.firstDrawStartsAt - _prizePoolConfig.drawPeriodSeconds*10, //set into the past
+      _prizePoolConfig.firstDrawStartsAt - _prizePoolConfig.drawPeriodSeconds * 10, //set into the past
       _rngAuctionConfig.auctionDuration,
       _rngAuctionConfig.targetAuctionTime
     );
 
-    rngAuctionRelayerDirect = new RngAuctionRelayerDirect(
-      rngAuction
-    );
+    rngAuctionRelayerDirect = new RngAuctionRelayerDirect(rngAuction);
     prizeToken = new ERC20PermitMock("POOL");
     underlyingToken = new ERC20PermitMock("USDC");
     yieldVault = new YieldVaultMintRate(underlyingToken, "Yearnish yUSDC", "yUSDC", address(this));
     twab = new TwabController(
       _prizePoolConfig.drawPeriodSeconds,
-      uint32(_prizePoolConfig.firstDrawStartsAt - _prizePoolConfig.drawPeriodSeconds*10) //set into the past
+      uint32(_prizePoolConfig.firstDrawStartsAt - _prizePoolConfig.drawPeriodSeconds * 10) //set into the past
     );
 
-    ConstructorParams memory params = ConstructorParams({
-      prizeToken: prizeToken,
-      twabController: twab,
-      drawManager: address(0),
-      grandPrizePeriodDraws: _prizePoolConfig.grandPrizePeriodDraws,
-      drawPeriodSeconds: _prizePoolConfig.drawPeriodSeconds,
-      firstDrawStartsAt: _prizePoolConfig.firstDrawStartsAt,
-      numberOfTiers: _prizePoolConfig.numberOfTiers,
-      tierShares: _prizePoolConfig.tierShares,
-      reserveShares: _prizePoolConfig.reserveShares,
-      smoothing: _prizePoolConfig.smoothing
-    });
-
-    prizePool = new PrizePool(params);
+    prizePool = new PrizePool(
+      ConstructorParams({
+        prizeToken: prizeToken,
+        twabController: twab,
+        drawPeriodSeconds: _prizePoolConfig.drawPeriodSeconds,
+        firstDrawStartsAt: _prizePoolConfig.firstDrawStartsAt,
+        smoothing: _prizePoolConfig.smoothing,
+        grandPrizePeriodDraws: _prizePoolConfig.grandPrizePeriodDraws,
+        numberOfTiers: _prizePoolConfig.numberOfTiers,
+        tierShares: _prizePoolConfig.tierShares,
+        reserveShares: _prizePoolConfig.reserveShares
+      })
+    );
 
     rngRelayAuction = new RngRelayAuction(
       prizePool,
@@ -165,7 +161,6 @@ contract Environment is CommonBase, StdCheats {
         underlyingToken,
         "PoolTogether Prize USDC",
         "pzUSDC",
-        twab,
         yieldVault,
         prizePool,
         address(claimer),
@@ -189,9 +184,9 @@ contract Environment is CommonBase, StdCheats {
 
     uint104 _initialAmountIn = 1e18; // 1 POOL
     uint104 _initialAmountOut = uint104(
-      uint(
+      uint256(
         convert(
-          convert(int(uint(_initialAmountIn))).div(
+          convert(int256(uint256(_initialAmountIn))).div(
             _liquidatorConfig.exchangeRatePrizeTokenToUnderlying
           )
         )
@@ -219,11 +214,11 @@ contract Environment is CommonBase, StdCheats {
     );
     // force the cast
     router = LiquidationRouter(address(cgdaRouter));
-    vault.setLiquidationPair(LiquidationPair(address(pair)));
+    vault.setLiquidationPair(address(pair));
   }
 
-  function addUsers(uint count, uint depositSize) external {
-    for (uint i = 0; i < count; i++) {
+  function addUsers(uint256 count, uint256 depositSize) external {
+    for (uint256 i = 0; i < count; i++) {
       address user = makeAddr(string.concat("user", string(abi.encode(i))));
       vm.startPrank(user);
       underlyingToken.mint(user, depositSize);
@@ -234,7 +229,7 @@ contract Environment is CommonBase, StdCheats {
     }
   }
 
-  function userCount() external view returns (uint) {
+  function userCount() external view returns (uint256) {
     return users.length;
   }
 
@@ -246,8 +241,8 @@ contract Environment is CommonBase, StdCheats {
     yieldVault.mintRate();
   }
 
-  function setApr(uint fixedPoint18) external {
-    uint ratePerSecond = fixedPoint18 / 365 days;
+  function setApr(uint256 fixedPoint18) external {
+    uint256 ratePerSecond = fixedPoint18 / 365 days;
     yieldVault.setRatePerSecond(ratePerSecond);
   }
 }
