@@ -5,9 +5,10 @@ import "forge-std/console2.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { Vault } from "pt-v5-vault/Vault.sol";
 
+import { Config } from "./utils/Config.sol";
 import { Environment } from "./Environment.sol";
 
-contract ClaimerAgent {
+contract ClaimerAgent is Config {
   Vm vm;
   string claimerCsv;
 
@@ -36,6 +37,7 @@ contract ClaimerAgent {
     public drawNormalTierInsufficientLiquidityPrizeCounts;
   mapping(uint256 => mapping(uint8 => uint256)) public drawNormalTierClaimedPrizeCounts;
 
+  OptimismGasConfig gasConfig = optimismGasConfig();
   Environment public env;
 
   uint constant INSPECT_DRAW_ID = 400;
@@ -63,7 +65,7 @@ contract ClaimerAgent {
 
   function check() public returns (uint256) {
     // console2.log("ClaimerAgent checking", block.timestamp);
-    uint drawId = env.prizePool().getLastClosedDrawId();
+    uint drawId = env.prizePool().getLastAwardedDrawId();
 
     if (drawId != computedDrawId) {
       computePrizes();
@@ -71,8 +73,7 @@ contract ClaimerAgent {
 
     uint totalFeesForBatch;
 
-    uint claimCostInPrizeTokens = env.gasConfig().gasUsagePerClaim *
-      env.gasConfig().gasPriceInPrizeTokens;
+    uint claimCostInPrizeTokens = gasConfig.gasUsagePerClaim * gasConfig.gasPriceInPrizeTokens;
 
     uint8 numTiers = env.prizePool().numberOfTiers();
 
@@ -298,7 +299,7 @@ contract ClaimerAgent {
   }
 
   function computePrizes() public {
-    uint256 drawId = env.prizePool().getLastClosedDrawId();
+    uint256 drawId = env.prizePool().getLastAwardedDrawId();
     require(drawId >= computedDrawId, "invalid draw");
     Vault vault = env.vault();
     uint8 numTiers = env.prizePool().numberOfTiers();
@@ -329,7 +330,7 @@ contract ClaimerAgent {
     if (isLogging(2)) {
       console2.log(
         "+++++++++++++++++++++ Prize Claim Cost (cents):",
-        (env.gasConfig().gasUsagePerClaim * env.gasConfig().gasPriceInPrizeTokens) / 1e16
+        (gasConfig.gasUsagePerClaim * gasConfig.gasPriceInPrizeTokens) / 1e16
       );
       console2.log(
         "+++++++++++++++++++++ Draw",

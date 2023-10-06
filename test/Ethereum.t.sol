@@ -13,9 +13,9 @@ import {
   CgdaLiquidatorConfig,
   DaLiquidatorConfig,
   ClaimerConfig,
-  RngAuctionConfig,
-  GasConfig
+  RngAuctionConfig
 } from "../src/Environment.sol";
+
 import { SimulatorTest } from "../src/SimulatorTest.sol";
 import { ClaimerAgent } from "../src/ClaimerAgent.sol";
 import { DrawAgent } from "../src/DrawAgent.sol";
@@ -23,18 +23,17 @@ import { LiquidatorAgent } from "../src/LiquidatorAgent.sol";
 import { SD59x18OverTime } from "../src/SD59x18OverTime.sol";
 import { UintOverTime } from "../src/UintOverTime.sol";
 
-contract EthereumTest is SimulatorTest {
-  string simulatorCsv;
+import { Constants } from "../src/utils/Constants.sol";
 
-  uint32 drawPeriodSeconds = 1 days;
-  uint24 grandPrizePeriodDraws = 365;
+contract EthereumTest is Constants, SimulatorTest {
+  string simulatorCsv;
 
   uint256 duration;
   uint256 timeStep = 20 minutes;
   uint256 startTime;
 
   uint256 totalValueLocked;
-  uint256 apr = 0.025e18;
+  uint256 apr = 0.025e18; // 2.5%
   uint256 numUsers = 1;
 
   SD59x18OverTime public exchangeRateOverTime; // Prize Token to Underlying Token
@@ -43,14 +42,13 @@ contract EthereumTest is SimulatorTest {
   PrizePoolConfig public prizePoolConfig;
   ClaimerConfig public claimerConfig;
   RngAuctionConfig public rngAuctionConfig;
-  GasConfig public gasConfig;
   Environment public env;
 
   ClaimerAgent public claimerAgent;
   LiquidatorAgent public liquidatorAgent;
   DrawAgent public drawAgent;
 
-  uint256 verbosity = 0;
+  uint256 verbosity;
 
   function setUp() public {
     startTime = block.timestamp + 10000 days;
@@ -58,6 +56,7 @@ contract EthereumTest is SimulatorTest {
 
     totalValueLocked = vm.envUint("TVL") * 1e18;
     console2.log("TVL: ", vm.envUint("TVL"));
+
     if (totalValueLocked == 0) {
       revert("Please define TVL env var > 0");
     }
@@ -77,58 +76,45 @@ contract EthereumTest is SimulatorTest {
     setUpAprFromJson();
 
     console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
-    console2.log("Draw Period (sec): ", drawPeriodSeconds);
-    console2.log("");
+    console2.log("Draw Period (sec): ", DRAW_PERIOD_SECONDS);
 
     prizePoolConfig = PrizePoolConfig({
-      grandPrizePeriodDraws: grandPrizePeriodDraws,
-      drawPeriodSeconds: drawPeriodSeconds,
-      firstDrawStartsAt: uint48(startTime + drawPeriodSeconds),
-      numberOfTiers: 3,
-      tierShares: 100,
-      reserveShares: 100,
-      smoothing: SD1x18.wrap(0.3e18)
+      drawPeriodSeconds: DRAW_PERIOD_SECONDS,
+      grandPrizePeriodDraws: GRAND_PRIZE_PERIOD_DRAWS,
+      firstDrawOpensAt: uint48(startTime + DRAW_PERIOD_SECONDS),
+      numberOfTiers: MIN_NUMBER_OF_TIERS,
+      reserveShares: RESERVE_SHARES,
+      tierShares: TIER_SHARES,
+      smoothing: _getContributionsSmoothing()
     });
 
     claimerConfig = ClaimerConfig({
-      minimumFee: 0.0001e18,
-      maximumFee: 10000e18,
-      timeToReachMaxFee: drawPeriodSeconds / 4,
-      maxFeePortionOfPrize: UD2x18.wrap(0.2e18)
+      minimumFee: CLAIMER_MIN_FEE,
+      maximumFee: CLAIMER_MAX_FEE,
+      timeToReachMaxFee: _getClaimerTimeToReachMaxFee(),
+      maxFeePortionOfPrize: _getClaimerMaxFeePortionOfPrize()
     });
 
     rngAuctionConfig = RngAuctionConfig({
-      auctionDuration: drawPeriodSeconds / 4, // six hours
-      targetAuctionTime: drawPeriodSeconds / 24 // first hour
-    });
-
-    // gas price is currently 50 gwei of ether.
-    // ether is worth 1800 POOL
-    // 50 * 1800 = 90000 POOL
-    // On Optimism gas is 0.000001588 gwei
-    // 0.000001588 * 1800 = 0.0028584 POOL
-    gasConfig = GasConfig({
-      gasPriceInPrizeTokens: 700 gwei,
-      gasUsagePerClaim: 150_000,
-      gasUsagePerLiquidation: 500_000,
-      gasUsagePerStartDraw: 152_473,
-      gasUsagePerCompleteDraw: 66_810,
-      gasUsagePerDispatchDraw: 250_000
+      sequenceOffset: _getRngAuctionSequenceOffset(prizePoolConfig.firstDrawOpensAt),
+      auctionDuration: AUCTION_DURATION,
+      auctionTargetTime: AUCTION_TARGET_TIME,
+      firstAuctionTargetRewardFraction: FIRST_AUCTION_TARGET_REWARD_FRACTION
     });
 
     env = new Environment();
-    env.initialize(prizePoolConfig, claimerConfig, rngAuctionConfig, gasConfig);
+    env.initialize(prizePoolConfig, claimerConfig, rngAuctionConfig);
 
     ///////////////// Liquidator /////////////////
     // Initialize one of the liquidators. Comment the other out.
 
     env.initializeCgdaLiquidator(
       CgdaLiquidatorConfig({
-        decayConstant: wrap(0.00015e18),
+        decayConstant: _getDecayConstant(),
         exchangeRatePrizeTokenToUnderlying: exchangeRateOverTime.get(startTime),
-        periodLength: drawPeriodSeconds,
+        periodLength: DRAW_PERIOD_SECONDS,
         periodOffset: uint32(startTime),
-        targetFirstSaleTime: drawPeriodSeconds / 2
+        targetFirstSaleTime: _getTargetFirstSaleTime()
       })
     );
 
@@ -171,25 +157,25 @@ contract EthereumTest is SimulatorTest {
     // Realistic test case
     // POOL/UNDERLYING = 0.000001
     // exchangeRateOverTime.add(startTime, wrap(1e18));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 2), wrap(1.5e18));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 4), wrap(2e18));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 6), wrap(4e18));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 8), wrap(3e18));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 10), wrap(1e18));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 12), wrap(5e17));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 14), wrap(1e17));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 16), wrap(5e16));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 18), wrap(1e16));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 2), wrap(1.5e18));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 4), wrap(2e18));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 6), wrap(4e18));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 8), wrap(3e18));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 10), wrap(1e18));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 12), wrap(5e17));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 14), wrap(1e17));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 16), wrap(5e16));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 18), wrap(1e16));
 
     // Custom test case
     exchangeRateOverTime.add(startTime, wrap(1e18));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 1), wrap(1.02e18));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 2), wrap(1.05e18));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 3), wrap(1.02e18));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 4), wrap(0.98e18));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 5), wrap(0.98e18));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 6), wrap(1.12e18));
-    // exchangeRateOverTime.add(startTime + (drawPeriodSeconds * 7), wrap(1.5e18));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 1), wrap(1.02e18));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 2), wrap(1.05e18));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 3), wrap(1.02e18));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 4), wrap(0.98e18));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 5), wrap(0.98e18));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 6), wrap(1.12e18));
+    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 7), wrap(1.5e18));
   }
 
   // NOTE: Order matters for ABI decode.
@@ -203,7 +189,7 @@ contract EthereumTest is SimulatorTest {
 
     // Realistic test case
     aprOverTime.add(startTime, 0.05e18);
-    aprOverTime.add(startTime + drawPeriodSeconds, 0.10e18);
+    aprOverTime.add(startTime + DRAW_PERIOD_SECONDS, 0.10e18);
   }
 
   function setUpAprFromJson() public {
@@ -248,7 +234,7 @@ contract EthereumTest is SimulatorTest {
       //   ",",
       //   vm.toString(drawAgent.drawCount()),
       //   ",",
-      //   vm.toString((i - startTime) / drawPeriodSeconds),
+      //   vm.toString((i - startTime) / DRAW_PERIOD_SECONDS),
       //   ",",
       //   vm.toString(availableYield),
       //   ",",
@@ -283,7 +269,7 @@ contract EthereumTest is SimulatorTest {
       // Log data
       logToCsv(
         SimulatorLog({
-          drawId: env.prizePool().getLastClosedDrawId(),
+          drawId: env.prizePool().getLastAwardedDrawId(),
           timestamp: block.timestamp,
           availableYield: availableYield,
           availableVaultShares: availableVaultShares,
@@ -304,8 +290,8 @@ contract EthereumTest is SimulatorTest {
     printFinalPrizes();
   }
 
-  function printDraws() public {
-    uint256 totalDraws = (block.timestamp - prizePoolConfig.firstDrawStartsAt) / drawPeriodSeconds;
+  function printDraws() public view {
+    uint256 totalDraws = (block.timestamp - prizePoolConfig.firstDrawOpensAt) / DRAW_PERIOD_SECONDS;
     uint256 missedDraws = (totalDraws) - drawAgent.drawCount();
     console2.log("");
     console2.log("Expected draws", totalDraws);
@@ -313,8 +299,8 @@ contract EthereumTest is SimulatorTest {
     console2.log("Missed Draws", missedDraws);
   }
 
-  function printMissedPrizes() public {
-    uint256 lastDrawId = env.prizePool().getLastClosedDrawId();
+  function printMissedPrizes() public view {
+    uint256 lastDrawId = env.prizePool().getLastAwardedDrawId();
     for (uint32 drawId = 0; drawId <= lastDrawId; drawId++) {
       uint256 numTiers = claimerAgent.drawNumberOfTiers(drawId);
       for (uint8 tier = 0; tier < numTiers; tier++) {
@@ -332,7 +318,7 @@ contract EthereumTest is SimulatorTest {
     }
   }
 
-  function printTotalNormalPrizes() public {
+  function printTotalNormalPrizes() public view {
     uint256 normalComputed = claimerAgent.totalNormalPrizesComputed();
     uint256 normalClaimed = claimerAgent.totalNormalPrizesClaimed();
     console2.log("");
@@ -341,7 +327,7 @@ contract EthereumTest is SimulatorTest {
     console2.log("Missed normal prizes", normalComputed - normalClaimed);
   }
 
-  function printTotalCanaryPrizes() public {
+  function printTotalCanaryPrizes() public view {
     uint256 canaryComputed = claimerAgent.totalCanaryPrizesComputed();
     uint256 canaryClaimed = claimerAgent.totalCanaryPrizesClaimed();
     console2.log("");
@@ -350,7 +336,7 @@ contract EthereumTest is SimulatorTest {
     console2.log("Missed canary prizes", canaryComputed - canaryClaimed);
   }
 
-  function printTotalClaimFees() public {
+  function printTotalClaimFees() public view {
     uint256 totalPrizes = claimerAgent.totalNormalPrizesClaimed() +
       claimerAgent.totalCanaryPrizesClaimed();
     uint256 averageFeePerClaim = totalPrizes > 0 ? claimerAgent.totalFees() / totalPrizes : 0;
@@ -358,9 +344,9 @@ contract EthereumTest is SimulatorTest {
     console2.log("Average fee per claim (cents): ", averageFeePerClaim / 1e16);
   }
 
-  function printPrizeSummary() public {
+  function printPrizeSummary() public view {
     uint8 maxTiers;
-    uint256 lastDrawId = env.prizePool().getLastClosedDrawId();
+    uint256 lastDrawId = env.prizePool().getLastAwardedDrawId();
     for (uint32 drawId = 0; drawId <= lastDrawId; drawId++) {
       uint8 numTiers = claimerAgent.drawNumberOfTiers(drawId);
       if (numTiers > maxTiers) {
@@ -384,7 +370,7 @@ contract EthereumTest is SimulatorTest {
     }
   }
 
-  function printFinalPrizes() public {
+  function printFinalPrizes() public view {
     uint8 numTiers = env.prizePool().numberOfTiers();
     for (uint8 tier = 0; tier < numTiers; tier++) {
       console2.log(

@@ -31,10 +31,12 @@ import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
 
 import { YieldVaultMintRate } from "./YieldVaultMintRate.sol";
 
+import { Constants } from "./utils/Constants.sol";
+
 struct PrizePoolConfig {
   uint24 grandPrizePeriodDraws;
   uint32 drawPeriodSeconds;
-  uint48 firstDrawStartsAt;
+  uint48 firstDrawOpensAt;
   uint8 numberOfTiers;
   uint8 tierShares;
   uint8 reserveShares;
@@ -63,20 +65,15 @@ struct ClaimerConfig {
 }
 
 struct RngAuctionConfig {
-  uint32 auctionDuration;
-  uint64 targetAuctionTime;
+  uint64 sequenceOffset;
+  uint64 auctionDuration;
+  uint64 auctionTargetTime;
+  UD2x18 firstAuctionTargetRewardFraction;
 }
 
-struct GasConfig {
-  uint256 gasPriceInPrizeTokens;
-  uint256 gasUsagePerClaim;
-  uint256 gasUsagePerLiquidation;
-  uint256 gasUsagePerStartDraw;
-  uint256 gasUsagePerCompleteDraw;
-  uint256 gasUsagePerDispatchDraw;
-}
-
-contract Environment is CommonBase, StdCheats {
+// @TODO: Ideally, we should have an Ethereum and Optimism environment
+// and configurations should only live in this file, not in the tests
+contract Environment is Constants, CommonBase, StdCheats {
   ERC20PermitMock public prizeToken;
   ERC20PermitMock public underlyingToken;
   TwabController public twab;
@@ -94,23 +91,20 @@ contract Environment is CommonBase, StdCheats {
 
   address[] public users;
 
-  GasConfig internal _gasConfig;
-
   function initialize(
     PrizePoolConfig memory _prizePoolConfig,
     ClaimerConfig memory _claimerConfig,
-    RngAuctionConfig memory _rngAuctionConfig,
-    GasConfig memory gasConfig_
+    RngAuctionConfig memory _rngAuctionConfig
   ) public {
-    _gasConfig = gasConfig_;
     rng = new RNGBlockhash();
     rngAuction = new RngAuction(
       rng,
       address(this),
       _prizePoolConfig.drawPeriodSeconds,
-      _prizePoolConfig.firstDrawStartsAt - _prizePoolConfig.drawPeriodSeconds * 10, //set into the past
+      _rngAuctionConfig.sequenceOffset,
       _rngAuctionConfig.auctionDuration,
-      _rngAuctionConfig.targetAuctionTime
+      _rngAuctionConfig.auctionTargetTime,
+      _rngAuctionConfig.firstAuctionTargetRewardFraction
     );
 
     rngAuctionRelayerDirect = new RngAuctionRelayerDirect(rngAuction);
@@ -119,7 +113,7 @@ contract Environment is CommonBase, StdCheats {
     yieldVault = new YieldVaultMintRate(underlyingToken, "Yearnish yUSDC", "yUSDC", address(this));
     twab = new TwabController(
       _prizePoolConfig.drawPeriodSeconds,
-      uint32(_prizePoolConfig.firstDrawStartsAt - _prizePoolConfig.drawPeriodSeconds * 10) //set into the past
+      uint32(_prizePoolConfig.firstDrawOpensAt - _prizePoolConfig.drawPeriodSeconds * 10) //set into the past
     );
 
     prizePool = new PrizePool(
@@ -127,7 +121,7 @@ contract Environment is CommonBase, StdCheats {
         prizeToken: prizeToken,
         twabController: twab,
         drawPeriodSeconds: _prizePoolConfig.drawPeriodSeconds,
-        firstDrawStartsAt: _prizePoolConfig.firstDrawStartsAt,
+        firstDrawOpensAt: _prizePoolConfig.firstDrawOpensAt,
         smoothing: _prizePoolConfig.smoothing,
         grandPrizePeriodDraws: _prizePoolConfig.grandPrizePeriodDraws,
         numberOfTiers: _prizePoolConfig.numberOfTiers,
@@ -138,10 +132,11 @@ contract Environment is CommonBase, StdCheats {
 
     rngRelayAuction = new RngRelayAuction(
       prizePool,
-      address(rngAuctionRelayerDirect),
       _rngAuctionConfig.auctionDuration,
-      _rngAuctionConfig.targetAuctionTime,
-      10000e18
+      _rngAuctionConfig.auctionTargetTime,
+      address(rngAuctionRelayerDirect),
+      _getFirstRngRelayAuctionTargetRewardFraction(),
+      AUCTION_MAX_REWARD
     );
 
     vaultFactory = new VaultFactory();
@@ -231,10 +226,6 @@ contract Environment is CommonBase, StdCheats {
 
   function userCount() external view returns (uint256) {
     return users.length;
-  }
-
-  function gasConfig() external view returns (GasConfig memory) {
-    return _gasConfig;
   }
 
   function mintYield() external {

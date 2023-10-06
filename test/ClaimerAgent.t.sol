@@ -8,10 +8,12 @@ import "forge-std/Test.sol";
 import {
   TieredLiquidityDistributor
 } from "pt-v5-prize-pool/abstract/TieredLiquidityDistributor.sol";
-import { Environment, PrizePool, Vault, GasConfig, Claimer } from "../src/Environment.sol";
+import { Environment, PrizePool, Vault, Claimer } from "../src/Environment.sol";
 import { ClaimerAgent } from "../src/ClaimerAgent.sol";
 
-contract ClaimerAgentTest is Test {
+import { Config } from "../src/utils/Config.sol";
+
+contract ClaimerAgentTest is Config, Test {
   Environment env = Environment(address(0xffff1));
   PrizePool prizePool = PrizePool(address(0xffff2));
   Vault vault = Vault(address(0xffff5));
@@ -22,7 +24,7 @@ contract ClaimerAgentTest is Test {
 
   ClaimerAgent agent;
 
-  uint numTiers = 2;
+  uint256 numTiers = 2;
 
   function setUp() public {
     vm.etch(address(env), "environment");
@@ -30,14 +32,7 @@ contract ClaimerAgentTest is Test {
     vm.etch(address(vault), "vault");
     vm.etch(address(claimer), "claimer");
 
-    GasConfig memory gasConfig = GasConfig({
-      gasPriceInPrizeTokens: 90000 gwei,
-      gasUsagePerClaim: 150_000,
-      gasUsagePerLiquidation: 500_000,
-      gasUsagePerStartDraw: 100_000,
-      gasUsagePerCompleteDraw: 100_000,
-      gasUsagePerDispatchDraw: 100_000
-    });
+    OptimismGasConfig memory gasConfig = optimismGasConfig();
 
     vm.mockCall(
       address(env),
@@ -67,7 +62,7 @@ contract ClaimerAgentTest is Test {
     );
     vm.mockCall(
       address(prizePool),
-      abi.encodeWithSelector(prizePool.getLastClosedDrawId.selector),
+      abi.encodeWithSelector(prizePool.getLastAwardedDrawId.selector),
       abi.encode(1)
     );
     vm.mockCall(
@@ -283,9 +278,9 @@ contract ClaimerAgentTest is Test {
     assertEq(winnerPrizeIndices[1][0], 2);
   }
 
-  function mockNoPrizes(address user, uint _numTiers) public {
-    for (uint t = 0; t < _numTiers; t++) {
-      for (uint p = 0; p < 4 ** t; p++) {
+  function mockNoPrizes(address user, uint256 _numTiers) public {
+    for (uint256 t = 0; t < _numTiers; t++) {
+      for (uint256 p = 0; p < 4 ** t; p++) {
         vm.mockCall(
           address(prizePool),
           abi.encodeWithSelector(PrizePool.isWinner.selector, address(vault), user, t, p),

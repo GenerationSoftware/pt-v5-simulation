@@ -7,9 +7,13 @@ import { Environment } from "./Environment.sol";
 import { SD59x18, wrap, convert, uMAX_SD59x18 } from "prb-math/SD59x18.sol";
 import { LiquidationPair } from "pt-v5-cgda-liquidator/LiquidationPair.sol";
 
-contract LiquidatorAgent {
+import { Config } from "./utils/Config.sol";
+
+contract LiquidatorAgent is Config {
+  OptimismGasConfig gasConfig = optimismGasConfig();
   Environment public env;
-  uint totalApproxProfit;
+
+  uint256 totalApproxProfit;
   string liquidatorCsv;
   Vm vm;
 
@@ -17,25 +21,25 @@ contract LiquidatorAgent {
     env = _env;
     vm = _vm;
     // initOutputFileCsv();
-    env.prizeToken().approve(address(env.router()), type(uint).max);
+    env.prizeToken().approve(address(env.router()), type(uint256).max);
   }
 
   function check(SD59x18 exchangeRatePrizeTokenToUnderlying) public {
-    uint gasCostInPrizeTokens = env.gasConfig().gasPriceInPrizeTokens *
-      env.gasConfig().gasUsagePerLiquidation;
-    uint maxAmountOut = env.pair().maxAmountOut();
+    uint256 gasCostInPrizeTokens = gasConfig.gasPriceInPrizeTokens *
+      gasConfig.gasUsagePerLiquidation;
+    uint256 maxAmountOut = env.pair().maxAmountOut();
 
     // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ checking maxAmountOut", maxAmountOut / 1e18);
     // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ period", env.pair().getAuction().period);
     // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ elapsed", env.pair().getElapsedTime());
 
-    uint amountOut = maxAmountOut;
-    uint amountIn = amountOut > 0 ? env.pair().computeExactAmountIn(amountOut) : 0;
+    uint256 amountOut = maxAmountOut;
+    uint256 amountIn = amountOut > 0 ? env.pair().computeExactAmountIn(amountOut) : 0;
     // console2.log("amountOut %s costs %s", amountOut, amountIn);
-    uint profit;
+    uint256 profit;
 
-    uint amountOutInPrizeTokens = uint(
-      convert(convert(int(amountOut)).mul(exchangeRatePrizeTokenToUnderlying))
+    uint256 amountOutInPrizeTokens = uint256(
+      convert(convert(int256(amountOut)).mul(exchangeRatePrizeTokenToUnderlying))
     );
 
     if (amountOutInPrizeTokens > amountIn) {
@@ -51,19 +55,20 @@ contract LiquidatorAgent {
         LiquidationPair(address(env.pair())),
         address(this),
         amountOut,
-        uint(uMAX_SD59x18 / 1e18), // NOTE: uMAX_SD59x18/1e18 for DaLiquidator
+        uint256(uMAX_SD59x18 / 1e18), // NOTE: uMAX_SD59x18/1e18 for DaLiquidator
         block.timestamp + 10
       );
 
       totalApproxProfit += profit;
 
-      SD59x18 efficiency = convert(int(amountIn)).div(convert(int(amountOutInPrizeTokens)));
-      uint efficiencyPercent = uint(convert(efficiency.mul(convert(100))));
-      uint elapsedSinceDrawEnded = block.timestamp - env.prizePool().lastClosedDrawEndedAt();
+      SD59x18 efficiency = convert(int256(amountIn)).div(convert(int256(amountOutInPrizeTokens)));
+      uint256 efficiencyPercent = uint256(convert(efficiency.mul(convert(100))));
+      uint256 elapsedSinceDrawEnded = block.timestamp -
+        env.prizePool().drawClosesAt(env.prizePool().getLastAwardedDrawId());
 
       // logToCsv(
       //   LiquidatorLog({
-      //     drawId: env.prizePool().getLastClosedDrawId(),
+      //     drawId: env.prizePool().getLastAwardedDrawId(),
       //     timestamp: block.timestamp,
       //     elapsedTime: elapsedSinceDrawEnded,
       //     elapsedPercent: (elapsedSinceDrawEnded * 100) / 1 days,
@@ -116,18 +121,18 @@ contract LiquidatorAgent {
   ////////////////////////// CSV LOGGING //////////////////////////
 
   struct LiquidatorLog {
-    uint drawId;
-    uint timestamp;
-    uint elapsedTime;
-    uint elapsedPercent;
-    uint availability;
-    uint amountIn;
-    uint amountOut;
-    uint exchangeRate;
-    uint marketExchangeRate;
-    uint profit;
-    uint efficiency;
-    uint remainingYield;
+    uint256 drawId;
+    uint256 timestamp;
+    uint256 elapsedTime;
+    uint256 elapsedPercent;
+    uint256 availability;
+    uint256 amountIn;
+    uint256 amountOut;
+    uint256 exchangeRate;
+    uint256 marketExchangeRate;
+    uint256 profit;
+    uint256 efficiency;
+    uint256 remainingYield;
   }
 
   // Clears and logs the CSV headers to the file

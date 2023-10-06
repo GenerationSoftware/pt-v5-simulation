@@ -6,30 +6,37 @@ import {
   Environment,
   RngAuction,
   RngAuctionRelayerDirect,
-  RngRelayAuction,
-  GasConfig
+  RngRelayAuction
 } from "./Environment.sol";
+
+import { Config } from "./utils/Config.sol";
 
 import { UD2x18 } from "prb-math/UD2x18.sol";
 
 import { AuctionResult } from "pt-v5-draw-auction/interfaces/IAuction.sol";
 
-contract DrawAgent {
+contract DrawAgent is Config {
   Environment public env;
+  EthereumGasConfig gasConfig = ethereumGasConfig();
 
-  uint public drawCount;
+  uint256 public drawCount;
 
-  uint public constant SEED = 0x23423;
+  uint256 public constant SEED = 0x23423;
 
   constructor(Environment _env) {
     env = _env;
   }
 
   function check() public {
-    GasConfig memory gasConfig = env.gasConfig();
-    uint cost = (gasConfig.gasUsagePerCompleteDraw + gasConfig.gasUsagePerStartDraw) *
-      gasConfig.gasPriceInPrizeTokens;
-    uint minimum = cost + (cost / 10); // require 10% profit
+    // awarding cost = start draw cost in POOL tokens  + RNG cost in POOL tokens
+    uint256 awardingCost = (gasConfig.gasUsagePerStartDraw * gasConfig.gasPriceInPrizeTokens) +
+      gasConfig.rngCostInPrizeTokens;
+    uint256 minimumAwardingProfit = getMinimumProfit(awardingCost);
+
+    uint256 relayCost = gasConfig.gasUsagePerRelayDraw * gasConfig.gasPriceInPrizeTokens;
+    uint256 minimumRelayProfit = getMinimumProfit(relayCost);
+
+    uint256 totalCost = awardingCost + relayCost;
 
     // console2.log("PrizePool hasNextDrawFinished: %s", env.prizePool().hasNextDrawFinished());
 
@@ -52,13 +59,14 @@ contract DrawAgent {
 
       uint256[] memory rewards = rngRelayAuction.computeRewards(auctionResults);
 
-      if (rewards[0] > minimum) {
+      if (rewards[0] > minimumAwardingProfit) {
         rngAuction.startRngRequest(address(this));
-        uint profit = rewards[0] - minimum;
-        uint delay = block.timestamp - env.prizePool().openDrawEndsAt();
+        uint256 profit = rewards[0] - minimumAwardingProfit;
+        uint256 delay = block.timestamp -
+          env.prizePool().drawClosesAt(env.prizePool().getDrawIdToAward());
         // console2.log("RngAuction !!!!!!!!!!!!!! time after draw end:", delay);
       } else {
-        // console2.log("RngAuction does not meet minimum", rewards[0], minimum);
+        // console2.log("RngAuction does not meet minimumAwardingProfit", rewards[0], minimumAwardingProfit);
       }
     }
 
@@ -75,15 +83,15 @@ contract DrawAgent {
     ) {
       // if the last sequence is not completed
 
-      (uint randomNumber, uint64 completedAt) = rngAuction.getRngResults();
+      (uint256 randomNumber, uint64 completedAt) = rngAuction.getRngResults();
 
       // compute reward
       AuctionResult memory rngAuctionResult = rngAuction.getLastAuctionResult();
 
       uint64 elapsedTime = uint64(block.timestamp - completedAt);
       // console2.log("lastSequenceId", lastSequenceId);
-      // console2.log("env.prizePool().lastClosedDrawId()", env.prizePool().getLastClosedDrawId());
-      // console2.log("env.prizePool().openDrawEndsAt()", env.prizePool().openDrawEndsAt());
+      // console2.log("env.prizePool().lastClosedDrawId()", env.prizePool().getLastAwardedDrawId());
+      // console2.log("env.prizePool().drawClosesAt(prizePool.getDrawIdToAward())()", env.prizePool().drawClosesAt(prizePool.getDrawIdToAward())());
       // console2.log("completedAt", completedAt);
       // console2.log("block.timestamp", block.timestamp);
 
@@ -98,27 +106,33 @@ contract DrawAgent {
       auctionResults[0] = rngAuctionResult;
       auctionResults[1] = auctionResult;
 
-      uint[] memory rewards = rngRelayAuction.computeRewards(auctionResults);
+      uint256[] memory rewards = rngRelayAuction.computeRewards(auctionResults);
 
-      uint profit = rewards[1] > minimum ? rewards[1] - minimum : 0;
+      uint256 profit = rewards[1] > minimumRelayProfit ? rewards[1] - minimumRelayProfit : 0;
 
-      if (profit > cost) {
-        uint sinceClosed;
-        if (env.prizePool().getLastClosedDrawId() != 0) {
-          sinceClosed = block.timestamp - env.prizePool().lastClosedDrawEndedAt();
+      if (profit > totalCost) {
+        uint256 sinceClosed;
+        if (env.prizePool().getLastAwardedDrawId() != 0) {
+          sinceClosed =
+            block.timestamp -
+            env.prizePool().drawClosesAt(env.prizePool().getDrawIdToAward());
         }
-        // uint delay = block.timestamp - env.prizePool().openDrawEndsAt();
-        // uint profit = rewards[1] - minimum;
+        // uint delay = block.timestamp - env.prizePool().drawClosesAt(prizePool.getDrawIdToAward())();
+        // uint profit = rewards[1] - minimumProfit;
         drawCount++;
         rngAuctionRelayerDirect.relay(rngRelayAuction, address(this));
         console2.log(
           "RngRelayAuction -----------> current draw id %s, time since last draw ended:",
-          env.prizePool().getLastClosedDrawId(),
+          env.prizePool().getLastAwardedDrawId(),
           sinceClosed
         );
       } else {
-        // console2.log("RngRelayAuction does not meet minimum", rewards[1], minimum);
+        // console2.log("RngRelayAuction does not meet minimumProfit", rewards[1], minimumProfit);
       }
     }
+  }
+
+  function getMinimumProfit(uint256 _cost) public pure returns (uint256) {
+    return _cost + (_cost / 10); // require 10% profit
   }
 }
