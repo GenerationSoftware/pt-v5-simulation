@@ -3,21 +3,21 @@ pragma solidity 0.8.19;
 import "forge-std/console2.sol";
 import { Vm } from "forge-std/Vm.sol";
 
-import { Environment } from "./Environment.sol";
 import { SD59x18, wrap, convert, uMAX_SD59x18 } from "prb-math/SD59x18.sol";
 import { LiquidationPair } from "pt-v5-cgda-liquidator/LiquidationPair.sol";
 
-import { Config } from "./utils/Config.sol";
+import { OptimismEnvironment } from "../environment/Optimism.sol";
+import { Config } from "../utils/Config.sol";
 
 contract LiquidatorAgent is Config {
   OptimismGasConfig gasConfig = optimismGasConfig();
-  Environment public env;
+  OptimismEnvironment public env;
 
   uint256 totalApproxProfit;
   string liquidatorCsv;
   Vm vm;
 
-  constructor(Environment _env, Vm _vm) {
+  constructor(OptimismEnvironment _env, Vm _vm) {
     env = _env;
     vm = _vm;
     // initOutputFileCsv();
@@ -61,10 +61,10 @@ contract LiquidatorAgent is Config {
 
       totalApproxProfit += profit;
 
-      SD59x18 efficiency = convert(int256(amountIn)).div(convert(int256(amountOutInPrizeTokens)));
-      uint256 efficiencyPercent = uint256(convert(efficiency.mul(convert(100))));
-      uint256 elapsedSinceDrawEnded = block.timestamp -
-        env.prizePool().drawClosesAt(env.prizePool().getLastAwardedDrawId());
+      // SD59x18 efficiency = convert(int256(amountIn)).div(convert(int256(amountOutInPrizeTokens)));
+      // uint256 efficiencyPercent = uint256(convert(efficiency.mul(convert(100))));
+      // uint256 elapsedSinceDrawEnded = block.timestamp -
+      //   env.prizePool().drawClosesAt(env.prizePool().getLastAwardedDrawId());
 
       // logToCsv(
       //   LiquidatorLog({

@@ -29,19 +29,11 @@ import { LiquidationPair } from "pt-v5-cgda-liquidator/LiquidationPair.sol";
 import { LiquidationPairFactory } from "pt-v5-cgda-liquidator/LiquidationPairFactory.sol";
 import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
 
-import { YieldVaultMintRate } from "./YieldVaultMintRate.sol";
+import { YieldVaultMintRate } from "../YieldVaultMintRate.sol";
 
-import { Constants } from "./utils/Constants.sol";
+import { Constant } from "../utils/Constant.sol";
 
-struct PrizePoolConfig {
-  uint24 grandPrizePeriodDraws;
-  uint32 drawPeriodSeconds;
-  uint48 firstDrawOpensAt;
-  uint8 numberOfTiers;
-  uint8 tierShares;
-  uint8 reserveShares;
-  SD1x18 smoothing;
-}
+import { BaseEnvironment } from "./Base.sol";
 
 struct CgdaLiquidatorConfig {
   SD59x18 decayConstant;
@@ -71,9 +63,9 @@ struct RngAuctionConfig {
   UD2x18 firstAuctionTargetRewardFraction;
 }
 
-// @TODO: Ideally, we should have an Ethereum and Optimism environment
+// @TODO: Ideally, we should have an Ethereum and Optimism OptimismEnvironment
 // and configurations should only live in this file, not in the tests
-contract Environment is Constants, CommonBase, StdCheats {
+contract OptimismEnvironment is BaseEnvironment {
   ERC20PermitMock public prizeToken;
   ERC20PermitMock public underlyingToken;
   TwabController public twab;

@@ -2,28 +2,27 @@ pragma solidity 0.8.19;
 
 import "forge-std/console2.sol";
 
-import {
-  Environment,
-  RngAuction,
-  RngAuctionRelayerDirect,
-  RngRelayAuction
-} from "./Environment.sol";
-
-import { Config } from "./utils/Config.sol";
-
 import { UD2x18 } from "prb-math/UD2x18.sol";
 
 import { AuctionResult } from "pt-v5-draw-auction/interfaces/IAuction.sol";
 
+import {
+  EthereumEnvironment,
+  RngAuction,
+  RngAuctionRelayerDirect,
+  RngRelayAuction
+} from "../environment/Ethereum.sol";
+import { Config } from "../utils/Config.sol";
+
 contract DrawAgent is Config {
-  Environment public env;
+  EthereumEnvironment public env;
   EthereumGasConfig gasConfig = ethereumGasConfig();
 
   uint256 public drawCount;
 
   uint256 public constant SEED = 0x23423;
 
-  constructor(Environment _env) {
+  constructor(EthereumEnvironment _env) {
     env = _env;
   }
 
@@ -61,9 +60,9 @@ contract DrawAgent is Config {
 
       if (rewards[0] > minimumAwardingProfit) {
         rngAuction.startRngRequest(address(this));
-        uint256 profit = rewards[0] - minimumAwardingProfit;
-        uint256 delay = block.timestamp -
-          env.prizePool().drawClosesAt(env.prizePool().getDrawIdToAward());
+        // uint256 profit = rewards[0] - minimumAwardingProfit;
+        // uint256 delay = block.timestamp -
+        //   env.prizePool().drawClosesAt(env.prizePool().getDrawIdToAward());
         // console2.log("RngAuction !!!!!!!!!!!!!! time after draw end:", delay);
       } else {
         // console2.log("RngAuction does not meet minimumAwardingProfit", rewards[0], minimumAwardingProfit);
@@ -83,7 +82,7 @@ contract DrawAgent is Config {
     ) {
       // if the last sequence is not completed
 
-      (uint256 randomNumber, uint64 completedAt) = rngAuction.getRngResults();
+      (, /* uint256 randomNumber */ uint64 completedAt) = rngAuction.getRngResults();
 
       // compute reward
       AuctionResult memory rngAuctionResult = rngAuction.getLastAuctionResult();

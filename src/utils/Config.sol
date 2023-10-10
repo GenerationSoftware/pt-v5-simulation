@@ -1,7 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.19;
 
+import { SD1x18 } from "prb-math/SD1x18.sol";
+
 abstract contract Config {
+  // Contracts configs
+  struct PrizePoolConfig {
+    uint24 grandPrizePeriodDraws;
+    uint32 drawPeriodSeconds;
+    uint48 firstDrawOpensAt;
+    uint8 numberOfTiers;
+    uint8 tierShares;
+    uint8 reserveShares;
+    SD1x18 smoothing;
+  }
+
+  // Gas configs
   struct EthereumGasConfig {
     uint256 gasPriceInPrizeTokens;
     uint256 gasUsagePerStartDraw;

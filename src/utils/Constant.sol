@@ -5,7 +5,7 @@ import { SD1x18, sd1x18 } from "prb-math/SD1x18.sol";
 import { UD2x18, ud2x18 } from "prb-math/UD2x18.sol";
 import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
 
-abstract contract Constants {
+abstract contract Constant {
   // Claimer
   uint256 internal constant CLAIMER_MIN_FEE = 0.0001e18;
   uint256 internal constant CLAIMER_MAX_FEE = 10000e18;
@@ -50,6 +50,10 @@ abstract contract Constants {
   // Prize Pool
   function _getContributionsSmoothing() internal pure returns (SD1x18) {
     return sd1x18(0.3e18);
+  }
+
+  function _getFirstDrawOpensAt(uint256 _startTime) internal pure returns (uint48) {
+    return uint48(_startTime + DRAW_PERIOD_SECONDS);
   }
 
   // RngAuctions

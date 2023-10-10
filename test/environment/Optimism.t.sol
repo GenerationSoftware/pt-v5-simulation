@@ -7,25 +7,24 @@ import { UD2x18 } from "prb-math/UD2x18.sol";
 import { SD1x18 } from "prb-math/SD1x18.sol";
 import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
 
+import { ClaimerAgent } from "../../src/agent/Claimer.sol";
+import { DrawAgent } from "../../src/agent/Draw.sol";
+import { LiquidatorAgent } from "../../src/agent/Liquidator.sol";
+
 import {
-  Environment,
-  PrizePoolConfig,
+  OptimismEnvironment,
   CgdaLiquidatorConfig,
   DaLiquidatorConfig,
   ClaimerConfig,
   RngAuctionConfig
-} from "../src/Environment.sol";
+} from "../../src/environment/Optimism.sol";
 
-import { SimulatorTest } from "../src/SimulatorTest.sol";
-import { ClaimerAgent } from "../src/ClaimerAgent.sol";
-import { DrawAgent } from "../src/DrawAgent.sol";
-import { LiquidatorAgent } from "../src/LiquidatorAgent.sol";
-import { SD59x18OverTime } from "../src/SD59x18OverTime.sol";
-import { UintOverTime } from "../src/UintOverTime.sol";
+import { Constant } from "../../src/utils/Constant.sol";
+import { SD59x18OverTime } from "../../src/SD59x18OverTime.sol";
 
-import { Constants } from "../src/utils/Constants.sol";
+import { BaseTest } from "./Base.t.sol";
 
-contract EthereumTest is Constants, SimulatorTest {
+contract OptimismTest is BaseTest {
   string simulatorCsv;
 
   uint256 duration;
@@ -37,16 +36,14 @@ contract EthereumTest is Constants, SimulatorTest {
   uint256 numUsers = 1;
 
   SD59x18OverTime public exchangeRateOverTime; // Prize Token to Underlying Token
-  UintOverTime public aprOverTime;
 
   PrizePoolConfig public prizePoolConfig;
   ClaimerConfig public claimerConfig;
   RngAuctionConfig public rngAuctionConfig;
-  Environment public env;
+  OptimismEnvironment public env;
 
   ClaimerAgent public claimerAgent;
   LiquidatorAgent public liquidatorAgent;
-  DrawAgent public drawAgent;
 
   uint256 verbosity;
 
@@ -72,8 +69,8 @@ contract EthereumTest is Constants, SimulatorTest {
     setUpExchangeRate();
     // setUpExchangeRateFromJson();
 
-    // setUpApr();
-    setUpAprFromJson();
+    // setUpApr(startTime);
+    setUpAprFromJson(startTime);
 
     console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
     console2.log("Draw Period (sec): ", DRAW_PERIOD_SECONDS);
@@ -102,7 +99,7 @@ contract EthereumTest is Constants, SimulatorTest {
       firstAuctionTargetRewardFraction: FIRST_AUCTION_TARGET_REWARD_FRACTION
     });
 
-    env = new Environment();
+    env = new OptimismEnvironment();
     env.initialize(prizePoolConfig, claimerConfig, rngAuctionConfig);
 
     ///////////////// Liquidator /////////////////
@@ -122,7 +119,6 @@ contract EthereumTest is Constants, SimulatorTest {
 
     claimerAgent = new ClaimerAgent(env, vm, verbosity);
     liquidatorAgent = new LiquidatorAgent(env, vm);
-    drawAgent = new DrawAgent(env);
   }
 
   // NOTE: Order matters for ABI decode.
@@ -178,38 +174,7 @@ contract EthereumTest is Constants, SimulatorTest {
     // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 7), wrap(1.5e18));
   }
 
-  // NOTE: Order matters for ABI decode.
-  struct HistoricApr {
-    uint256 apr;
-    uint256 timestamp;
-  }
-
-  function setUpApr() public {
-    aprOverTime = new UintOverTime();
-
-    // Realistic test case
-    aprOverTime.add(startTime, 0.05e18);
-    aprOverTime.add(startTime + DRAW_PERIOD_SECONDS, 0.10e18);
-  }
-
-  function setUpAprFromJson() public {
-    aprOverTime = new UintOverTime();
-
-    string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicAaveApr.json");
-    string memory jsonData = vm.readFile(jsonFile);
-
-    // NOTE: Options for APR are: .usd or .eth
-    bytes memory usdData = vm.parseJson(jsonData, "$.usd");
-    HistoricApr[] memory aprData = abi.decode(usdData, (HistoricApr[]));
-
-    uint256 initialTimestamp = aprData[0].timestamp;
-    for (uint256 i = 0; i < aprData.length; i++) {
-      HistoricApr memory rowData = aprData[i];
-      aprOverTime.add(startTime + (rowData.timestamp - initialTimestamp), rowData.apr);
-    }
-  }
-
-  function testEthereum() public noGasMetering recordEvents {
+  function testOptimism() public noGasMetering recordEvents {
     env.addUsers(numUsers, totalValueLocked / numUsers);
 
     env.setApr(aprOverTime.get(startTime));
@@ -231,8 +196,6 @@ contract EthereumTest is Constants, SimulatorTest {
       // uint256 unrealizedReserve = env.prizePool().reserveForNextDraw();
       // string memory valuesPart1 = string.concat(
       //   vm.toString(i),
-      //   ",",
-      //   vm.toString(drawAgent.drawCount()),
       //   ",",
       //   vm.toString((i - startTime) / DRAW_PERIOD_SECONDS),
       //   ",",
@@ -264,7 +227,6 @@ contract EthereumTest is Constants, SimulatorTest {
       env.mintYield();
       claimerAgent.check();
       liquidatorAgent.check(exchangeRateOverTime.get(block.timestamp));
-      drawAgent.check();
 
       // Log data
       logToCsv(
@@ -281,22 +243,12 @@ contract EthereumTest is Constants, SimulatorTest {
       );
     }
 
-    printDraws();
     printMissedPrizes();
     printTotalNormalPrizes();
     printTotalCanaryPrizes();
     printTotalClaimFees();
     printPrizeSummary();
     printFinalPrizes();
-  }
-
-  function printDraws() public view {
-    uint256 totalDraws = (block.timestamp - prizePoolConfig.firstDrawOpensAt) / DRAW_PERIOD_SECONDS;
-    uint256 missedDraws = (totalDraws) - drawAgent.drawCount();
-    console2.log("");
-    console2.log("Expected draws", totalDraws);
-    console2.log("Actual draws", drawAgent.drawCount());
-    console2.log("Missed Draws", missedDraws);
   }
 
   function printMissedPrizes() public view {

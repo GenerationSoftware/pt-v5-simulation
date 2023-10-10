@@ -8,13 +8,14 @@ import "forge-std/Test.sol";
 import {
   TieredLiquidityDistributor
 } from "pt-v5-prize-pool/abstract/TieredLiquidityDistributor.sol";
-import { Environment, PrizePool, Vault, Claimer } from "../src/Environment.sol";
-import { ClaimerAgent } from "../src/ClaimerAgent.sol";
 
-import { Config } from "../src/utils/Config.sol";
+import { OptimismEnvironment, PrizePool, Vault, Claimer } from "../../src/environment/Optimism.sol";
+import { ClaimerAgent } from "../../src/agent/Claimer.sol";
+
+import { Config } from "../../src/utils/Config.sol";
 
 contract ClaimerAgentTest is Config, Test {
-  Environment env = Environment(address(0xffff1));
+  OptimismEnvironment env = OptimismEnvironment(address(0xffff1));
   PrizePool prizePool = PrizePool(address(0xffff2));
   Vault vault = Vault(address(0xffff5));
   Claimer claimer = Claimer(address(0xffff6));
@@ -27,7 +28,7 @@ contract ClaimerAgentTest is Config, Test {
   uint256 numTiers = 2;
 
   function setUp() public {
-    vm.etch(address(env), "environment");
+    vm.etch(address(env), "OptimismEnvironment");
     vm.etch(address(prizePool), "prizePool");
     vm.etch(address(vault), "vault");
     vm.etch(address(claimer), "claimer");
@@ -43,7 +44,7 @@ contract ClaimerAgentTest is Config, Test {
     vm.mockCall(address(env), abi.encodeWithSignature("claimer()"), abi.encode(address(claimer)));
     vm.mockCall(
       address(env),
-      abi.encodeWithSelector(Environment.userCount.selector),
+      abi.encodeWithSelector(OptimismEnvironment.userCount.selector),
       abi.encode(2)
     );
     vm.mockCall(address(env), abi.encodeWithSignature("users(uint256)", 0), abi.encode(user1));

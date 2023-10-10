@@ -5,8 +5,8 @@ import "forge-std/console2.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { Vault } from "pt-v5-vault/Vault.sol";
 
-import { Config } from "./utils/Config.sol";
-import { Environment } from "./Environment.sol";
+import { OptimismEnvironment } from "../environment/Optimism.sol";
+import { Config } from "../utils/Config.sol";
 
 contract ClaimerAgent is Config {
   Vm vm;
@@ -38,13 +38,13 @@ contract ClaimerAgent is Config {
   mapping(uint256 => mapping(uint8 => uint256)) public drawNormalTierClaimedPrizeCounts;
 
   OptimismGasConfig gasConfig = optimismGasConfig();
-  Environment public env;
+  OptimismEnvironment public env;
 
   uint constant INSPECT_DRAW_ID = 400;
 
   uint logVerbosity;
 
-  constructor(Environment _env, Vm _vm, uint _logVerbosity) {
+  constructor(OptimismEnvironment _env, Vm _vm, uint _logVerbosity) {
     env = _env;
     vm = _vm;
     logVerbosity = _logVerbosity;
