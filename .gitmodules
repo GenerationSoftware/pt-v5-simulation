@@ -41,3 +41,10 @@
 	path = lib/pt-v5-draw-auction
 	url = https://github.com/GenerationSoftware/pt-v5-draw-auction
 	branch = prod-testnet-2
+[submodule "lib/erc5164-interfaces"]
+	path = lib/erc5164-interfaces
+	url = https://github.com/GenerationSoftware/erc5164-interfaces
+	branch = prod-testnet-2
+[submodule "lib/remote-owner"]
+	path = lib/remote-owner
+	url = https://github.com/GenerationSoftware/remote-owner

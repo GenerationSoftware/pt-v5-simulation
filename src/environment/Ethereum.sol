@@ -13,7 +13,7 @@ import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock
 import { RNGBlockhash } from "rng/RNGBlockhash.sol";
 import { RNGInterface } from "rng/RNGInterface.sol";
 import { RngAuction } from "pt-v5-draw-auction/RngAuction.sol";
-import { RngAuctionRelayerDirect } from "pt-v5-draw-auction/RngAuctionRelayerDirect.sol";
+import { RngAuctionRelayerRemoteOwner } from "pt-v5-draw-auction/RngAuctionRelayerRemoteOwner.sol";
 import { RngRelayAuction } from "pt-v5-draw-auction/RngRelayAuction.sol";
 
 import { TwabController } from "pt-v5-twab-controller/TwabController.sol";
@@ -45,7 +45,7 @@ contract EthereumEnvironment is BaseEnvironment {
   PrizePool public prizePool;
   RNGInterface public rng;
   RngAuction public rngAuction;
-  RngAuctionRelayerDirect public rngAuctionRelayerDirect;
+  RngAuctionRelayerRemoteOwner public rngAuctionRelayerRemoteOwner;
   RngRelayAuction public rngRelayAuction;
   TwabController public twab;
 
@@ -83,12 +83,12 @@ contract EthereumEnvironment is BaseEnvironment {
       _rngAuctionConfig.firstAuctionTargetRewardFraction
     );
 
-    rngAuctionRelayerDirect = new RngAuctionRelayerDirect(rngAuction);
+    rngAuctionRelayerRemoteOwner = new RngAuctionRelayerRemoteOwner(rngAuction);
     rngRelayAuction = new RngRelayAuction(
       prizePool,
       _rngAuctionConfig.auctionDuration,
       _rngAuctionConfig.auctionTargetTime,
-      address(rngAuctionRelayerDirect),
+      address(rngAuctionRelayerRemoteOwner),
       _getFirstRngRelayAuctionTargetRewardFraction(),
       AUCTION_MAX_REWARD
     );

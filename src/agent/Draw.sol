@@ -1,25 +1,42 @@
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.19;
 
 import "forge-std/console2.sol";
 
+import { StdCheats } from "forge-std/StdCheats.sol";
 import { UD2x18 } from "prb-math/UD2x18.sol";
 
+import {
+  IMessageDispatcherOptimism
+} from "erc5164-interfaces/interfaces/IMessageDispatcherOptimism.sol";
 import { AuctionResult } from "pt-v5-draw-auction/interfaces/IAuction.sol";
+import {
+  IRngAuctionRelayListener
+} from "pt-v5-draw-auction/interfaces/IRngAuctionRelayListener.sol";
+import { RemoteOwner } from "remote-owner/RemoteOwner.sol";
 
 import {
   EthereumEnvironment,
   RngAuction,
-  RngAuctionRelayerDirect,
+  RngAuctionRelayerRemoteOwner,
   RngRelayAuction
 } from "../environment/Ethereum.sol";
+
 import { Config } from "../utils/Config.sol";
 
-contract DrawAgent is Config {
+contract DrawAgent is Config, StdCheats {
   EthereumEnvironment public env;
   EthereumGasConfig gasConfig = ethereumGasConfig();
 
-  uint256 public drawCount;
+  IMessageDispatcherOptimism messageDispatcherOptimism =
+    IMessageDispatcherOptimism(makeAddr("messageDispatcherOptimism"));
 
+  IRngAuctionRelayListener remoteRngAuctionRelayListener =
+    IRngAuctionRelayListener(makeAddr("remoteRngAuctionRelayListener"));
+
+  RemoteOwner remoteOwner = RemoteOwner(payable(makeAddr("remoteOwner")));
+
+  uint256 public drawCount;
   uint256 public constant SEED = 0x23423;
 
   constructor(EthereumEnvironment _env) {
@@ -40,7 +57,7 @@ contract DrawAgent is Config {
     // console2.log("PrizePool hasNextDrawFinished: %s", env.prizePool().hasNextDrawFinished());
 
     RngAuction rngAuction = env.rngAuction();
-    RngAuctionRelayerDirect rngAuctionRelayerDirect = env.rngAuctionRelayerDirect();
+    RngAuctionRelayerRemoteOwner rngAuctionRelayerRemoteOwner = env.rngAuctionRelayerRemoteOwner();
     RngRelayAuction rngRelayAuction = env.rngRelayAuction();
 
     uint32 lastSequenceId = rngAuction.lastSequenceId();
@@ -119,7 +136,16 @@ contract DrawAgent is Config {
         // uint delay = block.timestamp - env.prizePool().drawClosesAt(prizePool.getDrawIdToAward())();
         // uint profit = rewards[1] - minimumProfit;
         drawCount++;
-        rngAuctionRelayerDirect.relay(rngRelayAuction, address(this));
+
+        rngAuctionRelayerRemoteOwner.relay(
+          messageDispatcherOptimism,
+          10,
+          remoteOwner,
+          remoteRngAuctionRelayListener,
+          address(this),
+          250_000
+        );
+
         console2.log(
           "RngRelayAuction -----------> current draw id %s, time since last draw ended:",
           env.prizePool().getLastAwardedDrawId(),

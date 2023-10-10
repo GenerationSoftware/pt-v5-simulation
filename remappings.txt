@@ -2,11 +2,15 @@ ds-test/=lib/forge-std/lib/ds-test/src/
 forge-std/=lib/forge-std/src/
 openzeppelin/=lib/pt-v5-vault/lib/openzeppelin-contracts/contracts/
 @openzeppelin/=lib/pt-v5-vault/lib/openzeppelin-contracts/
-owner-manager-contracts/=lib/pt-owner-manager-contracts/contracts/
-owner-manager/=lib/pt-v5-draw-auction/lib/owner-manager-contracts/contracts/
 prb-math/=lib/pt-v5-prize-pool/lib/prb-math/src/
 prb-test/=lib/pt-v5-claimer/lib/prb-math/lib/prb-test/src/
-pt-owner-manager-contracts/=lib/pt-owner-manager-contracts/contracts/
+solmate/=lib/pt-v5-claimer/lib/solmate/src/
+
+erc5164-interfaces/=lib/erc5164-interfaces/src/
+remote-owner/=lib/remote-owner/src/
+ring-buffer-lib/=lib/pt-v5-twab-controller/lib/ring-buffer-lib/src/
+rng/=lib/pt-v5-draw-auction/lib/pt-v5-rng-contracts/contracts/
+
 pt-v5-cgda-liquidator/=lib/pt-v5-cgda-liquidator/src/
 pt-v5-claimer/=lib/pt-v5-claimer/src/
 pt-v5-draw-auction/=lib/pt-v5-draw-auction/src/
@@ -16,6 +20,3 @@ pt-v5-prize-pool/=lib/pt-v5-prize-pool/src/
 pt-v5-twab-controller/=lib/pt-v5-twab-controller/src/
 pt-v5-vault/=lib/pt-v5-vault/src/
 pt-v5-vault-test/=lib/pt-v5-vault/test/
-ring-buffer-lib/=lib/pt-v5-twab-controller/lib/ring-buffer-lib/src/
-solmate/=lib/pt-v5-claimer/lib/solmate/src/
-rng/=lib/pt-v5-draw-auction/lib/pt-v5-rng-contracts/contracts/
