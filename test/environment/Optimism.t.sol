@@ -3,10 +3,6 @@ pragma solidity 0.8.19;
 
 import { console2 } from "forge-std/console2.sol";
 
-import { UD2x18 } from "prb-math/UD2x18.sol";
-import { SD1x18 } from "prb-math/SD1x18.sol";
-import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
-
 import { ClaimerAgent } from "../../src/agent/Claimer.sol";
 import { DrawAgent } from "../../src/agent/Draw.sol";
 import { LiquidatorAgent } from "../../src/agent/Liquidator.sol";
@@ -14,28 +10,25 @@ import { LiquidatorAgent } from "../../src/agent/Liquidator.sol";
 import {
   OptimismEnvironment,
   CgdaLiquidatorConfig,
-  DaLiquidatorConfig,
   ClaimerConfig,
   RngAuctionConfig
 } from "../../src/environment/Optimism.sol";
 
-import { Constant } from "../../src/utils/Constant.sol";
-import { SD59x18OverTime } from "../../src/SD59x18OverTime.sol";
-
 import { BaseTest } from "./Base.t.sol";
 
 contract OptimismTest is BaseTest {
-  string simulatorCsv;
+  string simulatorCsvFile = string.concat(vm.projectRoot(), "/data/simulatorOut.csv");
+  string simulatorCsvColumns =
+    "Draw ID, Timestamp, Available Yield, Available Vault Shares, Required Prize Tokens, Prize Pool Reserve, APR, TVL";
 
   uint256 duration;
   uint256 timeStep = 20 minutes;
   uint256 startTime;
+  uint48 firstDrawOpensAt;
 
   uint256 totalValueLocked;
   uint256 apr = 0.025e18; // 2.5%
   uint256 numUsers = 1;
-
-  SD59x18OverTime public exchangeRateOverTime; // Prize Token to Underlying Token
 
   PrizePoolConfig public prizePoolConfig;
   ClaimerConfig public claimerConfig;
@@ -43,6 +36,7 @@ contract OptimismTest is BaseTest {
   OptimismEnvironment public env;
 
   ClaimerAgent public claimerAgent;
+  DrawAgent public drawAgent;
   LiquidatorAgent public liquidatorAgent;
 
   uint256 verbosity;
@@ -50,6 +44,8 @@ contract OptimismTest is BaseTest {
   function setUp() public {
     startTime = block.timestamp + 10000 days;
     vm.warp(startTime);
+
+    firstDrawOpensAt = _getFirstDrawOpensAt(startTime);
 
     totalValueLocked = vm.envUint("TVL") * 1e18;
     console2.log("TVL: ", vm.envUint("TVL"));
@@ -61,13 +57,16 @@ contract OptimismTest is BaseTest {
     verbosity = vm.envUint("VERBOSITY");
     console2.log("VERBOSITY: ", verbosity);
 
-    duration = vm.envUint("DURATION");
+    // We offset by 2 draw periods cause the first draw opens 1 draw period after start time
+    // and one draw period need to pass before we can award it
+    duration = vm.envUint("DRAWS") * DRAW_PERIOD_SECONDS + DRAW_PERIOD_SECONDS * 2;
     console2.log("DURATION: ", duration);
+    console2.log("DURATION IN DAYS: ", duration / 1 days);
 
-    initOutputFileCsv();
+    initOutputFileCsv(simulatorCsvFile, simulatorCsvColumns);
 
-    setUpExchangeRate();
-    // setUpExchangeRateFromJson();
+    // setUpExchangeRate(startTime);
+    setUpExchangeRateFromJson(startTime);
 
     // setUpApr(startTime);
     setUpAprFromJson(startTime);
@@ -78,7 +77,7 @@ contract OptimismTest is BaseTest {
     prizePoolConfig = PrizePoolConfig({
       drawPeriodSeconds: DRAW_PERIOD_SECONDS,
       grandPrizePeriodDraws: GRAND_PRIZE_PERIOD_DRAWS,
-      firstDrawOpensAt: uint48(startTime + DRAW_PERIOD_SECONDS),
+      firstDrawOpensAt: firstDrawOpensAt,
       numberOfTiers: MIN_NUMBER_OF_TIERS,
       reserveShares: RESERVE_SHARES,
       tierShares: TIER_SHARES,
@@ -93,14 +92,13 @@ contract OptimismTest is BaseTest {
     });
 
     rngAuctionConfig = RngAuctionConfig({
-      sequenceOffset: _getRngAuctionSequenceOffset(prizePoolConfig.firstDrawOpensAt),
+      sequenceOffset: _getRngAuctionSequenceOffset(firstDrawOpensAt),
       auctionDuration: AUCTION_DURATION,
       auctionTargetTime: AUCTION_TARGET_TIME,
       firstAuctionTargetRewardFraction: FIRST_AUCTION_TARGET_REWARD_FRACTION
     });
 
-    env = new OptimismEnvironment();
-    env.initialize(prizePoolConfig, claimerConfig, rngAuctionConfig);
+    env = new OptimismEnvironment(prizePoolConfig, claimerConfig, rngAuctionConfig);
 
     ///////////////// Liquidator /////////////////
     // Initialize one of the liquidators. Comment the other out.
@@ -115,71 +113,15 @@ contract OptimismTest is BaseTest {
       })
     );
 
-    //////////////////////////////////////////////
-
     claimerAgent = new ClaimerAgent(env, vm, verbosity);
+    drawAgent = new DrawAgent(env);
     liquidatorAgent = new LiquidatorAgent(env, vm);
-  }
-
-  // NOTE: Order matters for ABI decode.
-  struct HistoricPrice {
-    uint256 exchangeRate;
-    uint256 timestamp;
-  }
-
-  function setUpExchangeRateFromJson() public {
-    exchangeRateOverTime = new SD59x18OverTime();
-
-    string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicPrices.json");
-    string memory jsonData = vm.readFile(jsonFile);
-    // NOTE: Options for exchange rate are: .usd or .eth
-    bytes memory usdData = vm.parseJson(jsonData, "$.usd");
-    HistoricPrice[] memory prices = abi.decode(usdData, (HistoricPrice[]));
-
-    uint256 initialTimestamp = prices[0].timestamp;
-    for (uint256 i = 0; i < prices.length; i++) {
-      HistoricPrice memory priceData = prices[i];
-      uint256 timeElapsed = priceData.timestamp - initialTimestamp;
-
-      exchangeRateOverTime.add(
-        startTime + timeElapsed,
-        SD59x18.wrap(int256(priceData.exchangeRate * 1e9))
-      );
-    }
-  }
-
-  function setUpExchangeRate() public {
-    exchangeRateOverTime = new SD59x18OverTime();
-    // Realistic test case
-    // POOL/UNDERLYING = 0.000001
-    // exchangeRateOverTime.add(startTime, wrap(1e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 2), wrap(1.5e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 4), wrap(2e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 6), wrap(4e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 8), wrap(3e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 10), wrap(1e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 12), wrap(5e17));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 14), wrap(1e17));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 16), wrap(5e16));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 18), wrap(1e16));
-
-    // Custom test case
-    exchangeRateOverTime.add(startTime, wrap(1e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 1), wrap(1.02e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 2), wrap(1.05e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 3), wrap(1.02e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 4), wrap(0.98e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 5), wrap(0.98e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 6), wrap(1.12e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 7), wrap(1.5e18));
   }
 
   function testOptimism() public noGasMetering recordEvents {
     env.addUsers(numUsers, totalValueLocked / numUsers);
 
     env.setApr(aprOverTime.get(startTime));
-
-    initOutputFileCsv();
 
     for (uint256 i = startTime; i < startTime + duration; i += timeStep) {
       vm.warp(i);
@@ -228,19 +170,17 @@ contract OptimismTest is BaseTest {
       claimerAgent.check();
       liquidatorAgent.check(exchangeRateOverTime.get(block.timestamp));
 
-      // Log data
-      logToCsv(
-        SimulatorLog({
-          drawId: env.prizePool().getLastAwardedDrawId(),
-          timestamp: block.timestamp,
-          availableYield: availableYield,
-          availableVaultShares: availableVaultShares,
-          requiredPrizeTokens: requiredPrizeTokens,
-          prizePoolReserve: prizePoolReserve,
-          apr: aprOverTime.get(i),
-          tvl: totalValueLocked
-        })
-      );
+      uint256[] memory logs = new uint256[](8);
+      logs[0] = env.prizePool().getLastAwardedDrawId();
+      logs[1] = block.timestamp;
+      logs[2] = availableYield;
+      logs[3] = availableVaultShares;
+      logs[4] = requiredPrizeTokens;
+      logs[5] = prizePoolReserve;
+      logs[6] = aprOverTime.get(i);
+      logs[7] = totalValueLocked;
+
+      logToCsv(simulatorCsvFile, logs);
     }
 
     printMissedPrizes();
@@ -333,52 +273,4 @@ contract OptimismTest is BaseTest {
       );
     }
   }
-
-  ////////////////////////// CSV LOGGING //////////////////////////
-
-  struct SimulatorLog {
-    uint256 drawId;
-    uint256 timestamp;
-    uint256 availableYield;
-    uint256 availableVaultShares;
-    uint256 requiredPrizeTokens;
-    uint256 prizePoolReserve;
-    uint256 apr;
-    uint256 tvl;
-  }
-
-  // Clears and logs the CSV headers to the file
-  function initOutputFileCsv() public {
-    simulatorCsv = string.concat(vm.projectRoot(), "/data/simulatorOut.csv");
-    vm.writeFile(simulatorCsv, "");
-    vm.writeLine(
-      simulatorCsv,
-      "Draw ID, Timestamp, Available Yield, Available Vault Shares, Required Prize Tokens, Prize Pool Reserve, APR, TVL"
-    );
-  }
-
-  function logToCsv(SimulatorLog memory log) public {
-    vm.writeLine(
-      simulatorCsv,
-      string.concat(
-        vm.toString(log.drawId),
-        ",",
-        vm.toString(log.timestamp),
-        ",",
-        vm.toString(log.availableYield),
-        ",",
-        vm.toString(log.availableVaultShares),
-        ",",
-        vm.toString(log.requiredPrizeTokens),
-        ",",
-        vm.toString(log.prizePoolReserve),
-        ",",
-        vm.toString(log.apr),
-        ",",
-        vm.toString(log.tvl)
-      )
-    );
-  }
-
-  /////////////////////////////////////////////////////////////////
 }

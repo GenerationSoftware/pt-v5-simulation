@@ -8,10 +8,11 @@ import { Vm } from "forge-std/Vm.sol";
 
 import { Config } from "../../src/utils/Config.sol";
 import { Constant } from "../../src/utils/Constant.sol";
+import { Utils } from "../../src/utils/Utils.sol";
 
 import { UintOverTime } from "../utils/UintOverTime.sol";
 
-contract BaseTest is CommonBase, Config, Constant, StdCheats, Test {
+contract BaseTest is CommonBase, Config, Constant, StdCheats, Test, Utils {
   UintOverTime public aprOverTime;
 
   // NOTE: Order matters for ABI decode.

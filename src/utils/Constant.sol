@@ -3,9 +3,11 @@ pragma solidity 0.8.19;
 
 import { SD1x18, sd1x18 } from "prb-math/SD1x18.sol";
 import { UD2x18, ud2x18 } from "prb-math/UD2x18.sol";
-import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
+import { SD59x18, convert } from "prb-math/SD59x18.sol";
 
-abstract contract Constant {
+import { Config } from "./Config.sol";
+
+abstract contract Constant is Config {
   // Claimer
   uint256 internal constant CLAIMER_MIN_FEE = 0.0001e18;
   uint256 internal constant CLAIMER_MAX_FEE = 10000e18;
@@ -21,7 +23,7 @@ abstract contract Constant {
   uint64 internal constant AUCTION_DURATION = 6 hours;
   uint64 internal constant AUCTION_TARGET_TIME = 1 hours;
   uint256 internal constant AUCTION_MAX_REWARD = 10000e18;
-  UD2x18 internal constant FIRST_AUCTION_TARGET_REWARD_FRACTION = UD2x18.wrap(0.5e18); // 50%
+  UD2x18 internal constant FIRST_AUCTION_TARGET_REWARD_FRACTION = UD2x18.wrap(0.25e18); // 50%
 
   // CGDA Liquidator
 
@@ -62,6 +64,13 @@ abstract contract Constant {
   }
 
   function _getRngAuctionSequenceOffset(uint64 _firstDrawOpensAt) internal pure returns (uint64) {
-    return _firstDrawOpensAt - DRAW_PERIOD_SECONDS * 10; // set into the past
+    return _firstDrawOpensAt;
+  }
+
+  // TwabController
+  function _getTwabControllerOffset(
+    PrizePoolConfig memory _prizePoolConfig
+  ) internal pure returns (uint32) {
+    return uint32(_prizePoolConfig.firstDrawOpensAt - _prizePoolConfig.drawPeriodSeconds * 10); // set into the past
   }
 }

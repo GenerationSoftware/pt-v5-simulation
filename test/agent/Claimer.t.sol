@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.19;
 
-import "forge-std/console2.sol";
+import { console2 } from "forge-std/console2.sol";
 
-import "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {
-  TieredLiquidityDistributor
-} from "pt-v5-prize-pool/abstract/TieredLiquidityDistributor.sol";
-
-import { OptimismEnvironment, PrizePool, Vault, Claimer } from "../../src/environment/Optimism.sol";
+import { PrizePool } from "../../src/environment/Base.sol";
+import { OptimismEnvironment, Vault, Claimer } from "../../src/environment/Optimism.sol";
 import { ClaimerAgent } from "../../src/agent/Claimer.sol";
 
 import { Config } from "../../src/utils/Config.sol";

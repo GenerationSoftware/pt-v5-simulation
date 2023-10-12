@@ -2,6 +2,7 @@
 pragma solidity 0.8.19;
 
 import { SD1x18 } from "prb-math/SD1x18.sol";
+import { UD2x18 } from "prb-math/UD2x18.sol";
 
 abstract contract Config {
   // Contracts configs
@@ -13,6 +14,13 @@ abstract contract Config {
     uint8 tierShares;
     uint8 reserveShares;
     SD1x18 smoothing;
+  }
+
+  struct RngAuctionConfig {
+    uint64 sequenceOffset;
+    uint64 auctionDuration;
+    uint64 auctionTargetTime;
+    UD2x18 firstAuctionTargetRewardFraction;
   }
 
   // Gas configs

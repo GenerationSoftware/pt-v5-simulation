@@ -1,37 +1,23 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.19;
 
-import "forge-std/console2.sol";
-import { CommonBase } from "forge-std/Base.sol";
-import { StdCheats } from "forge-std/StdCheats.sol";
-import { UD2x18, intoUD60x18 } from "prb-math/UD2x18.sol";
-import { SD1x18, unwrap, UNIT } from "prb-math/SD1x18.sol";
+import { console2 } from "forge-std/console2.sol";
 import { SD59x18, convert } from "prb-math/SD59x18.sol";
+import { UD2x18 } from "prb-math/UD2x18.sol";
 
 import { Vault } from "pt-v5-vault/Vault.sol";
 import { VaultFactory } from "pt-v5-vault/VaultFactory.sol";
 import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 
-import { RNGBlockhash } from "rng/RNGBlockhash.sol";
-import { RNGInterface } from "rng/RNGInterface.sol";
-import { RngAuction } from "pt-v5-draw-auction/RngAuction.sol";
-import { RngAuctionRelayerDirect } from "pt-v5-draw-auction/RngAuctionRelayerDirect.sol";
-import { RngRelayAuction } from "pt-v5-draw-auction/RngRelayAuction.sol";
-
-import { TwabController } from "pt-v5-twab-controller/TwabController.sol";
-import { PrizePool, ConstructorParams } from "pt-v5-prize-pool/PrizePool.sol";
 import { Claimer } from "pt-v5-claimer/Claimer.sol";
 
 import { ILiquidationSource } from "pt-v5-liquidator-interfaces/ILiquidationSource.sol";
 import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.sol";
 
-import { LiquidationPair } from "pt-v5-cgda-liquidator/LiquidationPair.sol";
 import { LiquidationPairFactory } from "pt-v5-cgda-liquidator/LiquidationPairFactory.sol";
 import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
 
 import { YieldVaultMintRate } from "../YieldVaultMintRate.sol";
-
-import { Constant } from "../utils/Constant.sol";
 
 import { BaseEnvironment } from "./Base.sol";
 
@@ -66,70 +52,23 @@ struct RngAuctionConfig {
 // @TODO: Ideally, we should have an Ethereum and Optimism OptimismEnvironment
 // and configurations should only live in this file, not in the tests
 contract OptimismEnvironment is BaseEnvironment {
-  ERC20PermitMock public prizeToken;
   ERC20PermitMock public underlyingToken;
-  TwabController public twab;
   VaultFactory public vaultFactory;
   Vault public vault;
   YieldVaultMintRate public yieldVault;
   ILiquidationPair public pair;
-  PrizePool public prizePool;
   Claimer public claimer;
   LiquidationRouter public router;
-  RNGInterface public rng;
-  RngAuction public rngAuction;
-  RngAuctionRelayerDirect public rngAuctionRelayerDirect;
-  RngRelayAuction public rngRelayAuction;
 
   address[] public users;
 
-  function initialize(
+  constructor(
     PrizePoolConfig memory _prizePoolConfig,
     ClaimerConfig memory _claimerConfig,
     RngAuctionConfig memory _rngAuctionConfig
-  ) public {
-    rng = new RNGBlockhash();
-    rngAuction = new RngAuction(
-      rng,
-      address(this),
-      _prizePoolConfig.drawPeriodSeconds,
-      _rngAuctionConfig.sequenceOffset,
-      _rngAuctionConfig.auctionDuration,
-      _rngAuctionConfig.auctionTargetTime,
-      _rngAuctionConfig.firstAuctionTargetRewardFraction
-    );
-
-    rngAuctionRelayerDirect = new RngAuctionRelayerDirect(rngAuction);
-    prizeToken = new ERC20PermitMock("POOL");
+  ) BaseEnvironment(_prizePoolConfig, _rngAuctionConfig) {
     underlyingToken = new ERC20PermitMock("USDC");
     yieldVault = new YieldVaultMintRate(underlyingToken, "Yearnish yUSDC", "yUSDC", address(this));
-    twab = new TwabController(
-      _prizePoolConfig.drawPeriodSeconds,
-      uint32(_prizePoolConfig.firstDrawOpensAt - _prizePoolConfig.drawPeriodSeconds * 10) //set into the past
-    );
-
-    prizePool = new PrizePool(
-      ConstructorParams({
-        prizeToken: prizeToken,
-        twabController: twab,
-        drawPeriodSeconds: _prizePoolConfig.drawPeriodSeconds,
-        firstDrawOpensAt: _prizePoolConfig.firstDrawOpensAt,
-        smoothing: _prizePoolConfig.smoothing,
-        grandPrizePeriodDraws: _prizePoolConfig.grandPrizePeriodDraws,
-        numberOfTiers: _prizePoolConfig.numberOfTiers,
-        tierShares: _prizePoolConfig.tierShares,
-        reserveShares: _prizePoolConfig.reserveShares
-      })
-    );
-
-    rngRelayAuction = new RngRelayAuction(
-      prizePool,
-      _rngAuctionConfig.auctionDuration,
-      _rngAuctionConfig.auctionTargetTime,
-      address(rngAuctionRelayerDirect),
-      _getFirstRngRelayAuctionTargetRewardFraction(),
-      AUCTION_MAX_REWARD
-    );
 
     vaultFactory = new VaultFactory();
 
@@ -140,8 +79,6 @@ contract OptimismEnvironment is BaseEnvironment {
       _claimerConfig.timeToReachMaxFee,
       _claimerConfig.maxFeePortionOfPrize
     );
-
-    prizePool.setDrawManager(address(rngRelayAuction));
 
     vault = Vault(
       vaultFactory.deployVault(

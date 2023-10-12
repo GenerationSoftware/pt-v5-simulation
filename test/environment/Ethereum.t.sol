@@ -3,20 +3,17 @@ pragma solidity 0.8.19;
 
 import { console2 } from "forge-std/console2.sol";
 
-import { UD2x18 } from "prb-math/UD2x18.sol";
-import { SD1x18 } from "prb-math/SD1x18.sol";
-import { SD59x18, convert, wrap } from "prb-math/SD59x18.sol";
+import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
+import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 
 import { DrawAgent } from "../../src/agent/Draw.sol";
-import { EthereumEnvironment, RngAuctionConfig } from "../../src/environment/Ethereum.sol";
+import { EthereumEnvironment } from "../../src/environment/Ethereum.sol";
 
-import { SD59x18OverTime } from "../../src/SD59x18OverTime.sol";
-
-import { UintOverTime } from "../utils/UintOverTime.sol";
 import { BaseTest } from "./Base.t.sol";
 
 contract EthereumTest is BaseTest {
-  string simulatorCsv;
+  string simulatorCsvFile = string.concat(vm.projectRoot(), "/data/simulatorOut.csv");
+  string simulatorCsvColumns = "Draw ID, Timestamp, APR, TVL";
 
   uint256 duration;
   uint256 timeStep = 20 minutes;
@@ -25,9 +22,9 @@ contract EthereumTest is BaseTest {
 
   uint256 totalValueLocked;
   uint256 apr = 0.025e18; // 2.5%
-  // uint256 numUsers = 1;
 
-  SD59x18OverTime public exchangeRateOverTime; // Prize Token to Underlying Token
+  ERC20PermitMock public prizeToken;
+  PrizePool public prizePool;
 
   PrizePoolConfig public prizePoolConfig;
   RngAuctionConfig public rngAuctionConfig;
@@ -53,13 +50,16 @@ contract EthereumTest is BaseTest {
     verbosity = vm.envUint("VERBOSITY");
     console2.log("VERBOSITY: ", verbosity);
 
-    duration = vm.envUint("DURATION");
+    // We offset by 2 draw periods cause the first draw opens 1 draw period after start time
+    // and one draw period need to pass before we can award it
+    duration = vm.envUint("DRAWS") * DRAW_PERIOD_SECONDS + DRAW_PERIOD_SECONDS * 2;
     console2.log("DURATION: ", duration);
+    console2.log("DURATION IN DAYS: ", duration / 1 days);
 
-    initOutputFileCsv();
+    initOutputFileCsv(simulatorCsvFile, simulatorCsvColumns);
 
-    setUpExchangeRate();
-    // setUpExchangeRateFromJson();
+    // setUpExchangeRate(startTime);
+    setUpExchangeRateFromJson(startTime);
 
     // setUpApr(startTime);
     setUpAprFromJson(startTime);
@@ -70,7 +70,7 @@ contract EthereumTest is BaseTest {
     prizePoolConfig = PrizePoolConfig({
       drawPeriodSeconds: DRAW_PERIOD_SECONDS,
       grandPrizePeriodDraws: GRAND_PRIZE_PERIOD_DRAWS,
-      firstDrawOpensAt: uint48(startTime + DRAW_PERIOD_SECONDS),
+      firstDrawOpensAt: firstDrawOpensAt,
       numberOfTiers: MIN_NUMBER_OF_TIERS,
       reserveShares: RESERVE_SHARES,
       tierShares: TIER_SHARES,
@@ -84,129 +84,47 @@ contract EthereumTest is BaseTest {
       firstAuctionTargetRewardFraction: FIRST_AUCTION_TARGET_REWARD_FRACTION
     });
 
-    env = new EthereumEnvironment();
-    env.initialize(prizePoolConfig, rngAuctionConfig);
+    env = new EthereumEnvironment(prizePoolConfig, rngAuctionConfig);
 
     drawAgent = new DrawAgent(env);
-  }
 
-  // NOTE: Order matters for ABI decode.
-  struct HistoricPrice {
-    uint256 exchangeRate;
-    uint256 timestamp;
-  }
-
-  function setUpExchangeRateFromJson() public {
-    exchangeRateOverTime = new SD59x18OverTime();
-
-    string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicPrices.json");
-    string memory jsonData = vm.readFile(jsonFile);
-    // NOTE: Options for exchange rate are: .usd or .eth
-    bytes memory usdData = vm.parseJson(jsonData, "$.usd");
-    HistoricPrice[] memory prices = abi.decode(usdData, (HistoricPrice[]));
-
-    uint256 initialTimestamp = prices[0].timestamp;
-    for (uint256 i = 0; i < prices.length; i++) {
-      HistoricPrice memory priceData = prices[i];
-      uint256 timeElapsed = priceData.timestamp - initialTimestamp;
-
-      exchangeRateOverTime.add(
-        startTime + timeElapsed,
-        SD59x18.wrap(int256(priceData.exchangeRate * 1e9))
-      );
-    }
-  }
-
-  function setUpExchangeRate() public {
-    exchangeRateOverTime = new SD59x18OverTime();
-    // Realistic test case
-    // POOL/UNDERLYING = 0.000001
-    // exchangeRateOverTime.add(startTime, wrap(1e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 2), wrap(1.5e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 4), wrap(2e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 6), wrap(4e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 8), wrap(3e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 10), wrap(1e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 12), wrap(5e17));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 14), wrap(1e17));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 16), wrap(5e16));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 18), wrap(1e16));
-
-    // Custom test case
-    exchangeRateOverTime.add(startTime, wrap(1e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 1), wrap(1.02e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 2), wrap(1.05e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 3), wrap(1.02e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 4), wrap(0.98e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 5), wrap(0.98e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 6), wrap(1.12e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 7), wrap(1.5e18));
+    prizeToken = env.prizeToken();
+    prizePool = env.prizePool();
   }
 
   function testEthereum() public noGasMetering recordEvents {
-    // env.setApr(aprOverTime.get(startTime));
-
-    initOutputFileCsv();
-
-    for (uint256 i = startTime; i < startTime + duration; i += timeStep) {
+    for (uint256 i = startTime; i <= startTime + duration; i += timeStep) {
       vm.warp(i);
       vm.roll(block.number + 1);
 
-      // Let agents do their thing
-      // env.setApr(aprOverTime.get(i));
-      drawAgent.check();
+      uint256 contributionAmount = type(uint96).max / (duration / timeStep);
 
-      // Log data
-      logToCsv(
-        SimulatorLog({
-          drawId: env.prizePool().getLastAwardedDrawId(),
-          timestamp: block.timestamp,
-          apr: aprOverTime.get(i),
-          tvl: totalValueLocked
-        })
-      );
+      if (block.timestamp >= firstDrawOpensAt) {
+        prizeToken.mint(address(prizePool), contributionAmount);
+        prizePool.contributePrizeTokens(makeAddr("vault"), contributionAmount);
+      }
+
+      drawAgent.check(0);
+
+      uint256[] memory logs = new uint256[](4);
+      logs[0] = env.prizePool().getLastAwardedDrawId();
+      logs[1] = block.timestamp;
+      logs[2] = aprOverTime.get(i);
+      logs[3] = totalValueLocked;
+
+      logToCsv(simulatorCsvFile, logs);
     }
 
     printDraws();
   }
 
   function printDraws() public view {
-    uint256 totalDraws = (block.timestamp - firstDrawOpensAt) / DRAW_PERIOD_SECONDS;
+    uint256 totalDraws = (block.timestamp - (firstDrawOpensAt + DRAW_PERIOD_SECONDS)) /
+      DRAW_PERIOD_SECONDS;
     uint256 missedDraws = (totalDraws) - drawAgent.drawCount();
     console2.log("");
     console2.log("Expected draws", totalDraws);
     console2.log("Actual draws", drawAgent.drawCount());
     console2.log("Missed Draws", missedDraws);
-  }
-
-  ////////////////////////// CSV LOGGING //////////////////////////
-
-  struct SimulatorLog {
-    uint256 drawId;
-    uint256 timestamp;
-    uint256 apr;
-    uint256 tvl;
-  }
-
-  // Clears and logs the CSV headers to the file
-  function initOutputFileCsv() public {
-    simulatorCsv = string.concat(vm.projectRoot(), "/data/simulatorOut.csv");
-    vm.writeFile(simulatorCsv, "");
-    vm.writeLine(simulatorCsv, "Draw ID, Timestamp, APR, TVL");
-  }
-
-  function logToCsv(SimulatorLog memory log) public {
-    vm.writeLine(
-      simulatorCsv,
-      string.concat(
-        vm.toString(log.drawId),
-        ",",
-        vm.toString(log.timestamp),
-        ",",
-        vm.toString(log.apr),
-        ",",
-        vm.toString(log.tvl)
-      )
-    );
   }
 }

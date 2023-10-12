@@ -3,7 +3,7 @@ pragma solidity 0.8.19;
 
 import "forge-std/Test.sol";
 
-import { SD59x18OverTime, SD59x18 } from "../src/SD59x18OverTime.sol";
+import { SD59x18OverTime, SD59x18 } from "../src/utils/SD59x18OverTime.sol";
 
 contract SD59x18OverTimeTest is Test {
   SD59x18OverTime rates;
@@ -41,7 +41,7 @@ contract SD59x18OverTimeTest is Test {
   }
 
   function testGet_regression() public {
-    uint startTime = 34560001;
+    uint256 startTime = 34560001;
     rates = new SD59x18OverTime();
     rates.add(0, SD59x18.wrap(1e18));
     rates.add(startTime + 2 days, SD59x18.wrap(10e18));
