@@ -2,6 +2,7 @@
 pragma solidity 0.8.19;
 
 import { SD1x18 } from "prb-math/SD1x18.sol";
+import { SD59x18 } from "prb-math/SD59x18.sol";
 import { UD2x18 } from "prb-math/UD2x18.sol";
 
 abstract contract Config {
@@ -14,6 +15,21 @@ abstract contract Config {
     uint8 tierShares;
     uint8 reserveShares;
     SD1x18 smoothing;
+  }
+
+  struct CgdaLiquidatorConfig {
+    SD59x18 decayConstant;
+    SD59x18 exchangeRatePrizeTokenToUnderlying;
+    uint32 periodLength;
+    uint32 periodOffset;
+    uint32 targetFirstSaleTime;
+  }
+
+  struct ClaimerConfig {
+    uint256 minimumFee;
+    uint256 maximumFee;
+    uint256 timeToReachMaxFee;
+    UD2x18 maxFeePortionOfPrize;
   }
 
   struct RngAuctionConfig {

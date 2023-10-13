@@ -7,9 +7,27 @@ import { SD59x18, wrap } from "prb-math/SD59x18.sol";
 import { SD59x18OverTime } from "./SD59x18OverTime.sol";
 
 contract Utils is CommonBase {
+  // APR
   struct HistoricPrice {
     uint256 exchangeRate;
     uint256 timestamp;
+  }
+
+  // Logging
+  struct RawClaimerLog {
+    uint256 drawId;
+    uint8 tier;
+    address[] winners;
+    uint32[][] prizeIndices;
+    uint256 feesForBatch;
+  }
+
+  struct ClaimerLog {
+    uint256 drawId;
+    uint256 tier;
+    address winner;
+    uint32 prizeIndex;
+    uint256 feesForBatch;
   }
 
   SD59x18OverTime public exchangeRateOverTime; // Prize Token to Underlying Token
@@ -71,7 +89,7 @@ contract Utils is CommonBase {
     vm.writeLine(csvFile, csvColumns);
   }
 
-  function logToCsv(string memory csvFile, uint256[] memory logs) public {
+  function logUint256ToCsv(string memory csvFile, uint256[] memory logs) public {
     string memory log = "";
 
     for (uint256 i = 0; i < logs.length; i++) {
@@ -79,5 +97,34 @@ contract Utils is CommonBase {
     }
 
     vm.writeLine(csvFile, log);
+  }
+
+  function logClaimerToCsv(string memory csvFile, RawClaimerLog memory log) public {
+    for (uint256 i = 0; i < log.winners.length; i++) {
+      for (uint256 j = 0; j < log.prizeIndices[i].length; j++) {
+        ClaimerLog memory claimerLog = ClaimerLog({
+          drawId: log.drawId,
+          tier: log.tier,
+          winner: log.winners[i],
+          prizeIndex: log.prizeIndices[i][j],
+          feesForBatch: log.feesForBatch
+        });
+
+        vm.writeLine(
+          csvFile,
+          string.concat(
+            vm.toString(claimerLog.drawId),
+            ",",
+            vm.toString(claimerLog.tier),
+            ",",
+            vm.toString(claimerLog.winner),
+            ",",
+            vm.toString(claimerLog.prizeIndex),
+            ",",
+            vm.toString(claimerLog.feesForBatch)
+          )
+        );
+      }
+    }
   }
 }

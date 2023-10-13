@@ -3,23 +3,22 @@ pragma solidity 0.8.19;
 
 import { console2 } from "forge-std/console2.sol";
 
+import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.sol";
+import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
+import { Vault } from "pt-v5-vault/Vault.sol";
+
 import { ClaimerAgent } from "../../src/agent/Claimer.sol";
 import { DrawAgent } from "../../src/agent/Draw.sol";
 import { LiquidatorAgent } from "../../src/agent/Liquidator.sol";
 
-import {
-  OptimismEnvironment,
-  CgdaLiquidatorConfig,
-  ClaimerConfig,
-  RngAuctionConfig
-} from "../../src/environment/Optimism.sol";
+import { OptimismEnvironment } from "../../src/environment/Optimism.sol";
 
 import { BaseTest } from "./Base.t.sol";
 
 contract OptimismTest is BaseTest {
-  string simulatorCsvFile = string.concat(vm.projectRoot(), "/data/simulatorOut.csv");
+  string simulatorCsvFile = string.concat(vm.projectRoot(), "/data/optimismSimulatorOut.csv");
   string simulatorCsvColumns =
-    "Draw ID, Timestamp, Available Yield, Available Vault Shares, Required Prize Tokens, Prize Pool Reserve, APR, TVL";
+    "Draw ID, Timestamp, Available Yield, Available Vault Shares, Required Prize Tokens, Prize Pool Reserve, Pending Reserve Contributions, APR, TVL";
 
   uint256 duration;
   uint256 timeStep = 20 minutes;
@@ -34,6 +33,10 @@ contract OptimismTest is BaseTest {
   ClaimerConfig public claimerConfig;
   RngAuctionConfig public rngAuctionConfig;
   OptimismEnvironment public env;
+
+  ILiquidationPair public pair;
+  PrizePool public prizePool;
+  Vault public vault;
 
   ClaimerAgent public claimerAgent;
   DrawAgent public drawAgent;
@@ -100,9 +103,6 @@ contract OptimismTest is BaseTest {
 
     env = new OptimismEnvironment(prizePoolConfig, claimerConfig, rngAuctionConfig);
 
-    ///////////////// Liquidator /////////////////
-    // Initialize one of the liquidators. Comment the other out.
-
     env.initializeCgdaLiquidator(
       CgdaLiquidatorConfig({
         decayConstant: _getDecayConstant(),
@@ -113,74 +113,55 @@ contract OptimismTest is BaseTest {
       })
     );
 
-    claimerAgent = new ClaimerAgent(env, vm, verbosity);
+    pair = env.pair();
+    prizePool = env.prizePool();
+    vault = env.vault();
+
+    claimerAgent = new ClaimerAgent(env, verbosity);
     drawAgent = new DrawAgent(env);
-    liquidatorAgent = new LiquidatorAgent(env, vm);
+    liquidatorAgent = new LiquidatorAgent(env);
   }
 
   function testOptimism() public noGasMetering recordEvents {
-    env.addUsers(numUsers, totalValueLocked / numUsers);
+    uint256 previousDrawAuctionSequenceId;
 
+    env.addUsers(numUsers, totalValueLocked / numUsers);
     env.setApr(aprOverTime.get(startTime));
 
-    for (uint256 i = startTime; i < startTime + duration; i += timeStep) {
+    for (uint256 i = startTime; i <= startTime + duration; i += timeStep) {
       vm.warp(i);
       vm.roll(block.number + 1);
 
       // Cache data at beginning of tick
-      uint256 availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));
-      uint256 availableVaultShares = env.pair().maxAmountOut();
-      uint256 prizePoolReserve = env.prizePool().reserve();
+      uint256 availableYield = vault.liquidatableBalanceOf(address(vault));
+      uint256 availableVaultShares = pair.maxAmountOut();
+      uint256 prizePoolReserve = prizePool.reserve();
       uint256 requiredPrizeTokens = availableVaultShares != 0
-        ? env.pair().computeExactAmountIn(availableVaultShares)
+        ? pair.computeExactAmountIn(availableVaultShares)
         : 0;
 
-      // uint256 unrealizedReserve = env.prizePool().reserveForNextDraw();
-      // string memory valuesPart1 = string.concat(
-      //   vm.toString(i),
-      //   ",",
-      //   vm.toString((i - startTime) / DRAW_PERIOD_SECONDS),
-      //   ",",
-      //   vm.toString(availableYield),
-      //   ",",
-      //   vm.toString(availableYield / 1e18),
-      //   ",",
-      //   vm.toString(availableVaultShares),
-      //   ",",
-      //   vm.toString(availableVaultShares / 1e18),
-      //   ",",
-      //   vm.toString(requiredPrizeTokens),
-      //   ",",
-      //   vm.toString(requiredPrizeTokens / 1e18),
-      //   ","
-      // );
-      //
-      // // split to avoid stack too deep
-      // string memory valuesPart2 = string.concat(
-      //   vm.toString(prizePoolReserve),
-      //   ",",
-      //   vm.toString(prizePoolReserve / 1e18)
-      // );
-      //
-      // vm.writeLine(runStatsOut, string.concat(valuesPart1, valuesPart2));
+      uint256 pendingReserveContributions = prizePool.pendingReserveContributions();
 
       // Let agents do their thing
       env.setApr(aprOverTime.get(i));
       env.mintYield();
-      claimerAgent.check();
-      liquidatorAgent.check(exchangeRateOverTime.get(block.timestamp));
 
-      uint256[] memory logs = new uint256[](8);
-      logs[0] = env.prizePool().getLastAwardedDrawId();
+      liquidatorAgent.check(exchangeRateOverTime.get(block.timestamp));
+      previousDrawAuctionSequenceId = drawAgent.check(previousDrawAuctionSequenceId);
+      claimerAgent.check();
+
+      uint256[] memory logs = new uint256[](9);
+      logs[0] = prizePool.getLastAwardedDrawId();
       logs[1] = block.timestamp;
       logs[2] = availableYield;
       logs[3] = availableVaultShares;
       logs[4] = requiredPrizeTokens;
       logs[5] = prizePoolReserve;
-      logs[6] = aprOverTime.get(i);
-      logs[7] = totalValueLocked;
+      logs[6] = pendingReserveContributions;
+      logs[7] = aprOverTime.get(i);
+      logs[8] = totalValueLocked;
 
-      logToCsv(simulatorCsvFile, logs);
+      logUint256ToCsv(simulatorCsvFile, logs);
     }
 
     printMissedPrizes();
@@ -192,7 +173,7 @@ contract OptimismTest is BaseTest {
   }
 
   function printMissedPrizes() public view {
-    uint256 lastDrawId = env.prizePool().getLastAwardedDrawId();
+    uint256 lastDrawId = prizePool.getLastAwardedDrawId();
     for (uint32 drawId = 0; drawId <= lastDrawId; drawId++) {
       uint256 numTiers = claimerAgent.drawNumberOfTiers(drawId);
       for (uint8 tier = 0; tier < numTiers; tier++) {
@@ -238,7 +219,7 @@ contract OptimismTest is BaseTest {
 
   function printPrizeSummary() public view {
     uint8 maxTiers;
-    uint256 lastDrawId = env.prizePool().getLastAwardedDrawId();
+    uint256 lastDrawId = prizePool.getLastAwardedDrawId();
     for (uint32 drawId = 0; drawId <= lastDrawId; drawId++) {
       uint8 numTiers = claimerAgent.drawNumberOfTiers(drawId);
       if (numTiers > maxTiers) {
@@ -263,13 +244,13 @@ contract OptimismTest is BaseTest {
   }
 
   function printFinalPrizes() public view {
-    uint8 numTiers = env.prizePool().numberOfTiers();
+    uint8 numTiers = prizePool.numberOfTiers();
     for (uint8 tier = 0; tier < numTiers; tier++) {
       console2.log(
         "Final prize size for tier",
         tier,
         "is",
-        env.prizePool().getTierPrizeSize(tier) / 1e18
+        prizePool.getTierPrizeSize(tier) / 1e18
       );
     }
   }

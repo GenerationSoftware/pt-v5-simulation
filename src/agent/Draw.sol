@@ -90,7 +90,7 @@ contract DrawAgent is Config, Constant, StdCheats, Utils {
         logs[4] = relayCost;
         logs[5] = relayProfit;
 
-        logToCsv(relayCostCsvFile, logs);
+        logUint256ToCsv(relayCostCsvFile, logs);
       }
     }
 
@@ -127,7 +127,7 @@ contract DrawAgent is Config, Constant, StdCheats, Utils {
         logs[4] = relayCost;
         logs[5] = relayProfit;
 
-        logToCsv(relayCostCsvFile, logs);
+        logUint256ToCsv(relayCostCsvFile, logs);
       }
     }
 

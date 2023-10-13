@@ -72,7 +72,7 @@ contract ClaimerAgentTest is Config, Test {
     mockNoPrizes(user1, numTiers);
     mockNoPrizes(user2, numTiers);
 
-    agent = new ClaimerAgent(env, vm, 0);
+    agent = new ClaimerAgent(env, 0);
   }
 
   function testComputePrizes_noPrizes() public {

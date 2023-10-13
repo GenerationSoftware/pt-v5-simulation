@@ -33,7 +33,7 @@ jobs:
       - name: Run Forge test
         env:
           TVL: ${{ vars.TVL }}
-          DURATION: ${{ vars.DURATION }}
+          DRAWS: ${{ vars.DRAWS }}
           VERBOSITY: ${{ vars.VERBOSITY }}
         run: forge test
         id: test

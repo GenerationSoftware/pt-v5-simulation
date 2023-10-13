@@ -12,7 +12,7 @@ import { EthereumEnvironment } from "../../src/environment/Ethereum.sol";
 import { BaseTest } from "./Base.t.sol";
 
 contract EthereumTest is BaseTest {
-  string simulatorCsvFile = string.concat(vm.projectRoot(), "/data/simulatorOut.csv");
+  string simulatorCsvFile = string.concat(vm.projectRoot(), "/data/ethereumSimulatorOut.csv");
   string simulatorCsvColumns = "Draw ID, Timestamp, APR, TVL";
 
   uint256 duration;
@@ -93,6 +93,8 @@ contract EthereumTest is BaseTest {
   }
 
   function testEthereum() public noGasMetering recordEvents {
+    uint256 previousDrawAuctionSequenceId;
+
     for (uint256 i = startTime; i <= startTime + duration; i += timeStep) {
       vm.warp(i);
       vm.roll(block.number + 1);
@@ -104,7 +106,7 @@ contract EthereumTest is BaseTest {
         prizePool.contributePrizeTokens(makeAddr("vault"), contributionAmount);
       }
 
-      drawAgent.check(0);
+      previousDrawAuctionSequenceId = drawAgent.check(previousDrawAuctionSequenceId);
 
       uint256[] memory logs = new uint256[](4);
       logs[0] = env.prizePool().getLastAwardedDrawId();
@@ -112,7 +114,7 @@ contract EthereumTest is BaseTest {
       logs[2] = aprOverTime.get(i);
       logs[3] = totalValueLocked;
 
-      logToCsv(simulatorCsvFile, logs);
+      logUint256ToCsv(simulatorCsvFile, logs);
     }
 
     printDraws();

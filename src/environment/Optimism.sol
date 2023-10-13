@@ -21,36 +21,6 @@ import { YieldVaultMintRate } from "../YieldVaultMintRate.sol";
 
 import { BaseEnvironment } from "./Base.sol";
 
-struct CgdaLiquidatorConfig {
-  SD59x18 decayConstant;
-  SD59x18 exchangeRatePrizeTokenToUnderlying;
-  uint32 periodLength;
-  uint32 periodOffset;
-  uint32 targetFirstSaleTime;
-}
-
-struct DaLiquidatorConfig {
-  SD59x18 initialTargetExchangeRate;
-  SD59x18 phaseTwoDurationPercent;
-  SD59x18 phaseTwoRangePercent;
-}
-
-struct ClaimerConfig {
-  uint256 minimumFee;
-  uint256 maximumFee;
-  uint256 timeToReachMaxFee;
-  UD2x18 maxFeePortionOfPrize;
-}
-
-struct RngAuctionConfig {
-  uint64 sequenceOffset;
-  uint64 auctionDuration;
-  uint64 auctionTargetTime;
-  UD2x18 firstAuctionTargetRewardFraction;
-}
-
-// @TODO: Ideally, we should have an Ethereum and Optimism OptimismEnvironment
-// and configurations should only live in this file, not in the tests
 contract OptimismEnvironment is BaseEnvironment {
   ERC20PermitMock public underlyingToken;
   VaultFactory public vaultFactory;
@@ -136,7 +106,7 @@ contract OptimismEnvironment is BaseEnvironment {
         )
       )
     );
-    // force the cast
+
     router = LiquidationRouter(address(cgdaRouter));
     vault.setLiquidationPair(address(pair));
   }
