@@ -21,7 +21,8 @@ contract OptimismTest is BaseTest {
     "Draw ID, Timestamp, Available Yield, Available Vault Shares, Required Prize Tokens, Prize Pool Reserve, Pending Reserve Contributions, APR, TVL";
 
   uint256 duration;
-  uint256 timeStep = 20 minutes;
+  uint256 timeStep = 1 days;
+  // uint256 timeStep = 20 minutes;
   uint256 startTime;
   uint48 firstDrawOpensAt;
 
@@ -68,11 +69,11 @@ contract OptimismTest is BaseTest {
 
     initOutputFileCsv(simulatorCsvFile, simulatorCsvColumns);
 
-    // setUpExchangeRate(startTime);
-    setUpExchangeRateFromJson(startTime);
+    setUpExchangeRate(startTime);
+    // setUpExchangeRateFromJson(startTime);
 
-    // setUpApr(startTime);
-    setUpAprFromJson(startTime);
+    setUpApr(startTime);
+    // setUpAprFromJson(startTime);
 
     console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
     console2.log("Draw Period (sec): ", DRAW_PERIOD_SECONDS);
@@ -102,7 +103,6 @@ contract OptimismTest is BaseTest {
     });
 
     env = new OptimismEnvironment(prizePoolConfig, claimerConfig, rngAuctionConfig);
-
     env.initializeCgdaLiquidator(
       CgdaLiquidatorConfig({
         decayConstant: _getDecayConstant(),
@@ -163,6 +163,8 @@ contract OptimismTest is BaseTest {
 
       logUint256ToCsv(simulatorCsvFile, logs);
     }
+
+    env.removeUsers();
 
     printMissedPrizes();
     printTotalNormalPrizes();

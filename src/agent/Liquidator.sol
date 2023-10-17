@@ -56,7 +56,7 @@ contract LiquidatorAgent is Config, Constant, Utils {
 
     uint256 amountOut = maxAmountOut;
     uint256 amountIn = amountOut > 0 ? env.pair().computeExactAmountIn(amountOut) : 0;
-    // console2.log("amountOut %s costs %s", amountOut, amountIn);
+    // console2.log("amountOut %s amountIn %s", amountOut, amountIn);
     uint256 profit;
 
     uint256 amountOutInPrizeTokens = uint256(
@@ -66,7 +66,8 @@ contract LiquidatorAgent is Config, Constant, Utils {
     if (amountOutInPrizeTokens > amountIn) {
       profit = amountOutInPrizeTokens - amountIn;
     }
-
+    // console2.log("liquidator profit", profit);
+    // console2.log("liquidator gasCostInPrizeTokens", gasCostInPrizeTokens);
     if (profit > gasCostInPrizeTokens) {
       prizeToken.mint(address(this), amountIn);
 

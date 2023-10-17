@@ -123,6 +123,15 @@ contract OptimismEnvironment is BaseEnvironment {
     }
   }
 
+  function removeUsers() external {
+    for (uint256 i = 0; i < users.length; i++) {
+      address user = users[i];
+      vm.startPrank(user);
+      vault.withdraw(vault.balanceOf(user), user, user);
+      vm.stopPrank();
+    }
+  }
+
   function userCount() external view returns (uint256) {
     return users.length;
   }

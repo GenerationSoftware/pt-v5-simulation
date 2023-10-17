@@ -13,15 +13,17 @@ abstract contract Constant is Config {
   uint256 internal constant CLAIMER_MAX_FEE = 10000e18;
 
   // Prize Pool
-  uint32 internal constant DRAW_PERIOD_SECONDS = 1 days;
-  uint24 internal constant GRAND_PRIZE_PERIOD_DRAWS = 365; // Once a year for daily draws
+  // uint32 internal constant DRAW_PERIOD_SECONDS = 1 days;
+  uint32 internal constant DRAW_PERIOD_SECONDS = 365 days;
+  uint24 internal constant GRAND_PRIZE_PERIOD_DRAWS = 1; // Once a year for daily draws
   uint8 internal constant MIN_NUMBER_OF_TIERS = 3;
   uint8 internal constant RESERVE_SHARES = 100;
   uint8 internal constant TIER_SHARES = 100;
 
   // RngAuctions
-  uint64 internal constant AUCTION_DURATION = 6 hours;
-  uint64 internal constant AUCTION_TARGET_TIME = 1 hours;
+  // uint64 internal constant AUCTION_DURATION = 6 hours;
+  uint64 internal constant AUCTION_DURATION = 90 days;
+  uint64 internal constant AUCTION_TARGET_TIME = 15 days;
   uint256 internal constant AUCTION_MAX_REWARD = 10000e18;
   UD2x18 internal constant FIRST_AUCTION_TARGET_REWARD_FRACTION = UD2x18.wrap(0.25e18); // 50%
 

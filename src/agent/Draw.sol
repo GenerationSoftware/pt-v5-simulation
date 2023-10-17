@@ -94,14 +94,18 @@ contract DrawAgent is Config, Constant, StdCheats, Utils {
       }
     }
 
+    uint64 completedAt;
+    bool isAuctionOpen;
+
     if (
       lastSequenceId > 0 && // if there is a last sequence id
-      rngAuction.isRngComplete() && // and it's ready
-      !rngRelayAuction.isSequenceCompleted(lastSequenceId) && // and the last sequence has not completed yet
-      block.timestamp >= prizePool.drawOpensAt(prizePool.getDrawIdToAward()) + DRAW_PERIOD_SECONDS // if the Draw can be awarded
+      rngAuction.isRngComplete() // and it's ready
     ) {
-      (, /* uint256 randomNumber */ uint64 completedAt) = rngAuction.getRngResults();
+      (, /* uint256 randomNumber */ completedAt) = rngAuction.getRngResults();
+      isAuctionOpen = rngRelayAuction.isAuctionOpen(lastSequenceId, completedAt); // and the last sequence has not completed yet
+    }
 
+    if (isAuctionOpen) {
       // Compute reward
       AuctionResult[] memory auctionResults = new AuctionResult[](2);
       auctionResults[0] = rngAuction.getLastAuctionResult();
