@@ -1,33 +1,50 @@
 [submodule "lib/forge-std"]
 	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
-[submodule "lib/pt-v5-claimer"]
-	path = lib/pt-v5-claimer
-	url = https://github.com/generationsoftware/pt-v5-claimer
+	branch = v1
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
+	branch = release-v4.9
+[submodule "lib/pt-v5-claimer"]
+	path = lib/pt-v5-claimer
+	url = https://github.com/generationsoftware/pt-v5-claimer
+	branch = main
 [submodule "lib/pt-owner-manager-contracts"]
 	path = lib/pt-owner-manager-contracts
 	url = https://github.com/GenerationSoftware/pt-owner-manager-contracts
 [submodule "lib/pt-v5-rng-contracts"]
 	path = lib/pt-v5-rng-contracts
 	url = https://github.com/generationsoftware/pt-v5-rng-contracts
+	branch = main
 [submodule "lib/pt-v5-prize-pool"]
 	path = lib/pt-v5-prize-pool
-	url = git@github.com:GenerationSoftware/pt-v5-prize-pool-PRIVATE.git
+	url = https://github.com/GenerationSoftware/pt-v5-prize-pool
+	branch = main
 [submodule "lib/pt-v5-twab-controller"]
 	path = lib/pt-v5-twab-controller
-	url = git@github.com:GenerationSoftware/pt-v5-twab-controller-PRIVATE.git
+	url = https://github.com/GenerationSoftware/pt-v5-twab-controller
+	branch = main
 [submodule "lib/pt-v5-liquidator-interfaces"]
 	path = lib/pt-v5-liquidator-interfaces
-	url = git@github.com:GenerationSoftware/pt-v5-liquidator-interfaces-PRIVATE.git
+	url = https://github.com/GenerationSoftware/pt-v5-liquidator-interfaces
+	branch = main
 [submodule "lib/pt-v5-vault"]
 	path = lib/pt-v5-vault
-	url = git@github.com:GenerationSoftware/pt-v5-vault-PRIVATE.git
+	url = https://github.com/GenerationSoftware/pt-v5-vault
+	branch = main
 [submodule "lib/pt-v5-cgda-liquidator"]
 	path = lib/pt-v5-cgda-liquidator
-	url = git@github.com:GenerationSoftware/pt-v5-cgda-liquidator-PRIVATE.git
+	url = https://github.com/GenerationSoftware/pt-v5-cgda-liquidator
+	branch = main
 [submodule "lib/pt-v5-draw-auction"]
 	path = lib/pt-v5-draw-auction
-	url = git@github.com:GenerationSoftware/pt-v5-draw-auction.git
+	url = https://github.com/GenerationSoftware/pt-v5-draw-auction
+	branch = main
+[submodule "lib/erc5164-interfaces"]
+	path = lib/erc5164-interfaces
+	url = https://github.com/GenerationSoftware/erc5164-interfaces
+	branch = main
+[submodule "lib/remote-owner"]
+	path = lib/remote-owner
+	url = https://github.com/GenerationSoftware/remote-owner

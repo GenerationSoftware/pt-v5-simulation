@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.19;
 
-import "forge-std/console2.sol";
-
 import { SD59x18 } from "prb-math/SD59x18.sol";
 
 contract SD59x18OverTime {
   struct Rate {
-    uint timestamp;
+    uint256 timestamp;
     SD59x18 value;
   }
 
@@ -25,25 +23,33 @@ contract SD59x18OverTime {
         "SD59x18OverTime::add: timestamp must be greater than last timestamp"
       );
     }
+
     rates.push(Rate({ timestamp: timestamp, value: value }));
   }
 
-  function _binarySearch(uint left, uint right, uint timestamp) internal view returns (uint) {
-    // console2.log("_binarySearch left right timestamp", left, right, timestamp);
+  function _binarySearch(
+    uint256 left,
+    uint256 right,
+    uint256 timestamp
+  ) internal view returns (uint256) {
     if (left == right || left == right - 1) {
       return left;
     }
-    uint mid = left + (right - left) / 2;
-    // console2.log("_binarySearch mid timestamp", mid, rates[mid].timestamp);
+
+    uint256 mid = left + (right - left) / 2;
+
     if (rates[mid].timestamp == timestamp || left == rates.length - 1) {
       return mid;
     }
+
     if (rates[mid].timestamp > timestamp) {
       if (left == mid) {
         return mid;
       }
+
       return _binarySearch(left, mid - 1, timestamp);
     }
+
     return _binarySearch(mid, right, timestamp);
   }
 }

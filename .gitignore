@@ -9,11 +9,10 @@ out/
 /broadcast/**/dry-run/
 
 .DS_Store
-.envrc
 node_modules
 
 .env
 .envrc
 .history
 
-data/*
+data/*.csv

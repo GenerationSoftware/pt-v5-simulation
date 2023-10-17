@@ -2,9 +2,9 @@
 pragma solidity 0.8.19;
 
 import { AccessControl } from "openzeppelin/access/AccessControl.sol";
-import { ERC20, ERC4626, IERC20, IERC20Metadata } from "openzeppelin/token/ERC20/extensions/ERC4626.sol";
+import { ERC20, ERC4626, IERC20 } from "openzeppelin/token/ERC20/extensions/ERC4626.sol";
 
-import "forge-std/console2.sol";
+import { console2 } from "forge-std/console2.sol";
 
 import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 
@@ -82,7 +82,7 @@ contract YieldVaultMintRate is ERC4626, AccessControl {
 
     // console2.log("Simulated Yield:", mintAmount);
     // console2.log("Simulated Yield (/1e18):", mintAmount / 1e18);
-    
+
     ERC20PermitMock(asset()).mint(address(this), mintAmount);
     lastYieldTimestamp = block.timestamp;
   }
