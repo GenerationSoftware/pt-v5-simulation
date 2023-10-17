@@ -27,8 +27,7 @@ contract BaseTest is CommonBase, Config, Constant, StdCheats, Test, Utils {
     aprOverTime = new UintOverTime();
 
     // Realistic test case
-    aprOverTime.add(_startTime, 0.05e18);
-    aprOverTime.add(_startTime + DRAW_PERIOD_SECONDS, 0.10e18);
+    aprOverTime.add(_startTime, Constant.SIMPLE_APR);
   }
 
   function setUpAprFromJson(uint256 _startTime) public {

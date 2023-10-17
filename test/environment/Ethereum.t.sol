@@ -16,12 +16,10 @@ contract EthereumTest is BaseTest {
   string simulatorCsvColumns = "Draw ID, Timestamp, APR, TVL";
 
   uint256 duration;
-  uint256 timeStep = 20 minutes;
   uint256 startTime;
   uint48 firstDrawOpensAt;
 
   uint256 totalValueLocked;
-  uint256 apr = 0.025e18; // 2.5%
 
   ERC20PermitMock public prizeToken;
   PrizePool public prizePool;
@@ -58,11 +56,11 @@ contract EthereumTest is BaseTest {
 
     initOutputFileCsv(simulatorCsvFile, simulatorCsvColumns);
 
-    // setUpExchangeRate(startTime);
-    setUpExchangeRateFromJson(startTime);
+    setUpExchangeRate(startTime);
+    // setUpExchangeRateFromJson(startTime);
 
-    // setUpApr(startTime);
-    setUpAprFromJson(startTime);
+    setUpApr(startTime);
+    // setUpAprFromJson(startTime);
 
     console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
     console2.log("Draw Period (sec): ", DRAW_PERIOD_SECONDS);
@@ -95,11 +93,11 @@ contract EthereumTest is BaseTest {
   function testEthereum() public noGasMetering recordEvents {
     uint256 previousDrawAuctionSequenceId;
 
-    for (uint256 i = startTime; i <= startTime + duration; i += timeStep) {
+    for (uint256 i = startTime; i <= startTime + duration; i += TIME_STEP) {
       vm.warp(i);
       vm.roll(block.number + 1);
 
-      uint256 contributionAmount = type(uint96).max / (duration / timeStep);
+      uint256 contributionAmount = type(uint96).max / (duration / TIME_STEP);
 
       if (block.timestamp >= firstDrawOpensAt) {
         prizeToken.mint(address(prizePool), contributionAmount);

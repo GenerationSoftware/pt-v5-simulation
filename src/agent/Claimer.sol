@@ -96,19 +96,19 @@ contract ClaimerAgent is Config, Utils {
         {
           uint claimFees = claimer.computeTotalFees(tier, tierPrizes);
           uint cost = tierPrizes * gasConfig.gasUsagePerClaim * gasConfig.gasPriceInPrizeTokens;
-          console2.log(
-            "\tclaimFees for drawId %s tier %s with prize size %e:",
-            drawId,
-            tier,
-            prizeSize
-          );
-          console2.log(
-            "\t\tfor %s prizes the fees are %e with cost %e",
-            tierPrizes,
-            claimFees,
-            cost
-          );
           if (isLogging(3)) {
+            console2.log(
+              "\tclaimFees for drawId %s tier %s with prize size %e:",
+              drawId,
+              tier,
+              prizeSize
+            );
+            console2.log(
+              "\t\tfor %s prizes the fees are %e with cost %e",
+              tierPrizes,
+              claimFees,
+              cost
+            );
             console2.log("\tclaim (fees, count, cost)", claimFees, tierPrizes, cost);
           }
           if (claimFees > cost) {
@@ -116,7 +116,9 @@ contract ClaimerAgent is Config, Utils {
               console2.log("\t$ claiming (fees, count)", claimFees, tierPrizes);
             }
             targetClaimCount = tierPrizes;
-            console2.log("CLAIMING %s FOR TIER %s", tierPrizes, tier);
+            if (isLogging(3)) {
+              console2.log("CLAIMING %s FOR TIER %s", tierPrizes, tier);
+            }
           }
         }
       }

@@ -21,14 +21,10 @@ contract OptimismTest is BaseTest {
     "Draw ID, Timestamp, Available Yield, Available Vault Shares, Required Prize Tokens, Prize Pool Reserve, Pending Reserve Contributions, APR, TVL";
 
   uint256 duration;
-  uint256 timeStep = 1 days;
-  // uint256 timeStep = 20 minutes;
   uint256 startTime;
   uint48 firstDrawOpensAt;
 
   uint256 totalValueLocked;
-  uint256 apr = 0.025e18; // 2.5%
-  uint256 numUsers = 1;
 
   PrizePoolConfig public prizePoolConfig;
   ClaimerConfig public claimerConfig;
@@ -125,10 +121,10 @@ contract OptimismTest is BaseTest {
   function testOptimism() public noGasMetering recordEvents {
     uint256 previousDrawAuctionSequenceId;
 
-    env.addUsers(numUsers, totalValueLocked / numUsers);
+    env.addUsers(NUM_USERS, totalValueLocked / NUM_USERS);
     env.setApr(aprOverTime.get(startTime));
 
-    for (uint256 i = startTime; i <= startTime + duration; i += timeStep) {
+    for (uint256 i = startTime; i <= startTime + duration; i += TIME_STEP) {
       vm.warp(i);
       vm.roll(block.number + 1);
 
@@ -166,12 +162,14 @@ contract OptimismTest is BaseTest {
 
     env.removeUsers();
 
+    printDraws();
     printMissedPrizes();
     printTotalNormalPrizes();
     printTotalCanaryPrizes();
     printTotalClaimFees();
     printPrizeSummary();
     printFinalPrizes();
+    printLiquidity();
   }
 
   function printMissedPrizes() public view {
@@ -191,6 +189,25 @@ contract OptimismTest is BaseTest {
         }
       }
     }
+  }
+
+  function printLiquidity() public view {
+    uint reserve = env.prizePool().reserve() + env.prizePool().pendingReserveContributions();
+    uint totalLiquidity = env.prizePool().getTotalContributedBetween(1, env.prizePool().getOpenDrawId());
+    console2.log("");
+    console2.log("Total liquidity: ", totalLiquidity / 1e18);
+    console2.log("Final prize liquidity", (env.prizePool().accountedBalance() - reserve) / 1e18);
+    console2.log("Final reserve liquidity", (reserve) / 1e18);
+  }
+
+  function printDraws() public view {
+    uint256 totalDraws = (block.timestamp - (firstDrawOpensAt + DRAW_PERIOD_SECONDS)) /
+      DRAW_PERIOD_SECONDS;
+    uint256 missedDraws = (totalDraws) - drawAgent.drawCount();
+    console2.log("");
+    console2.log("Expected draws", totalDraws);
+    console2.log("Actual draws", drawAgent.drawCount());
+    console2.log("Missed Draws", missedDraws);
   }
 
   function printTotalNormalPrizes() public view {
@@ -220,6 +237,7 @@ contract OptimismTest is BaseTest {
   }
 
   function printPrizeSummary() public view {
+    console2.log("");
     uint8 maxTiers;
     uint256 lastDrawId = prizePool.getLastAwardedDrawId();
     for (uint32 drawId = 0; drawId <= lastDrawId; drawId++) {
@@ -246,7 +264,9 @@ contract OptimismTest is BaseTest {
   }
 
   function printFinalPrizes() public view {
+    console2.log("");
     uint8 numTiers = prizePool.numberOfTiers();
+    console2.log("Final number of tiers: %s", numTiers);
     for (uint8 tier = 0; tier < numTiers; tier++) {
       console2.log(
         "Final prize size for tier",
