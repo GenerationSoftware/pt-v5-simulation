@@ -14,7 +14,7 @@ abstract contract Config {
     uint8 numberOfTiers;
     uint8 tierShares;
     uint8 reserveShares;
-    SD1x18 smoothing;
+    uint24 drawTimeout;
   }
 
   struct CgdaLiquidatorConfig {
@@ -54,27 +54,22 @@ abstract contract Config {
   }
 
   function ethereumGasConfig() public pure returns (EthereumGasConfig memory) {
-    // 1 ETH is worth 2975 POOL
-    // Gas price is around 12 gwei on average during the past 7 days.
-    // 12 * 2975 = 35700 POOL gwei
-    // 1 ETH is worth 215 LINK
-    // To award the draw, around 1 LINK is needed on average during the past 7 days.
-    // 1 LINK is worth 14 POOL
+    // Gas price is at 34 gwei
+    // It costs about the same gas to start the draw as it does in LINK costs
+    uint256 gasPrice = 34 gwei;
     return
       EthereumGasConfig({
-        gasPriceInPrizeTokens: 35_700 gwei,
+        gasPriceInPrizeTokens: gasPrice,
         gasUsagePerStartDraw: 152_473,
         gasUsagePerRelayDraw: 405_000,
-        rngCostInPrizeTokens: 14e18
+        rngCostInPrizeTokens: 152_473 * gasPrice
       });
   }
 
   function optimismGasConfig() public pure returns (OptimismGasConfig memory) {
-    // On Optimism gas is 0.07748510571 gwei on average during the past 7 days.
-    // 0.07748510571 * 2975 = 230 POOL gwei
     return
       OptimismGasConfig({
-        gasPriceInPrizeTokens: 35_700 gwei,
+        gasPriceInPrizeTokens: 0.3 gwei, // approximating that OP gas is about than 1% mainnet gas
         gasUsagePerClaim: 150_000,
         gasUsagePerLiquidation: 500_000
       });

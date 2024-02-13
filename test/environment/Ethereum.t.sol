@@ -72,7 +72,7 @@ contract EthereumTest is BaseTest {
       numberOfTiers: MIN_NUMBER_OF_TIERS,
       reserveShares: RESERVE_SHARES,
       tierShares: TIER_SHARES,
-      smoothing: _getContributionsSmoothing()
+      drawTimeout: 30 // 30 draws = 1 month
     });
 
     rngAuctionConfig = RngAuctionConfig({

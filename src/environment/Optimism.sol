@@ -5,8 +5,8 @@ import { console2 } from "forge-std/console2.sol";
 import { SD59x18, convert } from "prb-math/SD59x18.sol";
 import { UD2x18 } from "prb-math/UD2x18.sol";
 
-import { Vault } from "pt-v5-vault/Vault.sol";
-import { VaultFactory } from "pt-v5-vault/VaultFactory.sol";
+import { PrizeVault } from "pt-v5-vault/PrizeVault.sol";
+import { PrizeVaultFactory } from "pt-v5-vault/PrizeVaultFactory.sol";
 import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 
 import { Claimer } from "pt-v5-claimer/Claimer.sol";
@@ -23,8 +23,8 @@ import { BaseEnvironment } from "./Base.sol";
 
 contract OptimismEnvironment is BaseEnvironment {
   ERC20PermitMock public underlyingToken;
-  VaultFactory public vaultFactory;
-  Vault public vault;
+  PrizeVaultFactory public vaultFactory;
+  PrizeVault public vault;
   YieldVaultMintRate public yieldVault;
   ILiquidationPair public pair;
   Claimer public claimer;
@@ -40,7 +40,7 @@ contract OptimismEnvironment is BaseEnvironment {
     underlyingToken = new ERC20PermitMock("USDC");
     yieldVault = new YieldVaultMintRate(underlyingToken, "Yearnish yUSDC", "yUSDC", address(this));
 
-    vaultFactory = new VaultFactory();
+    vaultFactory = new PrizeVaultFactory();
 
     claimer = new Claimer(
       prizePool,
@@ -50,16 +50,16 @@ contract OptimismEnvironment is BaseEnvironment {
       _claimerConfig.maxFeePortionOfPrize
     );
 
-    vault = Vault(
+    vault = PrizeVault(
       vaultFactory.deployVault(
-        underlyingToken,
         "PoolTogether Prize USDC",
         "pzUSDC",
         yieldVault,
         prizePool,
         address(claimer),
-        address(0),
-        0,
+        address(0), // yield fee recipient
+        0, // yield fee
+        1e5, // yield buffer
         address(this)
       )
     );
@@ -76,7 +76,7 @@ contract OptimismEnvironment is BaseEnvironment {
     //   _liquidatorConfig.exchangeRatePrizeTokenToUnderlying.unwrap()
     // );
 
-    uint104 _initialAmountIn = 1e18; // 1 POOL
+    uint104 _initialAmountIn = 1e18; // 1 WETH
     uint104 _initialAmountOut = uint104(
       uint256(
         convert(

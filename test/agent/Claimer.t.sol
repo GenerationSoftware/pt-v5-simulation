@@ -6,7 +6,7 @@ import { console2 } from "forge-std/console2.sol";
 import { Test } from "forge-std/Test.sol";
 
 import { PrizePool } from "../../src/environment/Base.sol";
-import { OptimismEnvironment, Vault, Claimer } from "../../src/environment/Optimism.sol";
+import { OptimismEnvironment, PrizeVault, Claimer } from "../../src/environment/Optimism.sol";
 import { ClaimerAgent } from "../../src/agent/Claimer.sol";
 
 import { Config } from "../../src/utils/Config.sol";
@@ -14,7 +14,7 @@ import { Config } from "../../src/utils/Config.sol";
 contract ClaimerAgentTest is Config, Test {
   OptimismEnvironment env = OptimismEnvironment(address(0xffff1));
   PrizePool prizePool = PrizePool(address(0xffff2));
-  Vault vault = Vault(address(0xffff5));
+  PrizeVault vault = PrizeVault(address(0xffff5));
   Claimer claimer = Claimer(address(0xffff6));
 
   address user1 = address(0xffff3);

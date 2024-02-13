@@ -2,7 +2,7 @@
 pragma solidity 0.8.19;
 
 import { CommonBase } from "forge-std/Base.sol";
-import { SD59x18, wrap } from "prb-math/SD59x18.sol";
+import { SD59x18, wrap, convert } from "prb-math/SD59x18.sol";
 
 import { SD59x18OverTime } from "./SD59x18OverTime.sol";
 
@@ -35,51 +35,30 @@ contract Utils is CommonBase {
   constructor() {}
 
   // APR
-  function setUpExchangeRateFromJson(uint256 _startTime) public {
-    exchangeRateOverTime = new SD59x18OverTime();
+  // function setUpExchangeRateFromJson(uint256 _startTime) public {
+  //   exchangeRateOverTime = new SD59x18OverTime();
 
-    string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicPrices.json");
-    string memory jsonData = vm.readFile(jsonFile);
-    // NOTE: Options for exchange rate are: .usd or .eth
-    bytes memory usdData = vm.parseJson(jsonData, "$.usd");
-    HistoricPrice[] memory prices = abi.decode(usdData, (HistoricPrice[]));
+  //   string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicPrices.json");
+  //   string memory jsonData = vm.readFile(jsonFile);
+  //   // NOTE: Options for exchange rate are: .usd or .eth
+  //   bytes memory usdData = vm.parseJson(jsonData, "$.usd");
+  //   HistoricPrice[] memory prices = abi.decode(usdData, (HistoricPrice[]));
 
-    uint256 initialTimestamp = prices[0].timestamp;
-    for (uint256 i = 0; i < prices.length; i++) {
-      HistoricPrice memory priceData = prices[i];
-      uint256 timeElapsed = priceData.timestamp - initialTimestamp;
+  //   uint256 initialTimestamp = prices[0].timestamp;
+  //   for (uint256 i = 0; i < prices.length; i++) {
+  //     HistoricPrice memory priceData = prices[i];
+  //     uint256 timeElapsed = priceData.timestamp - initialTimestamp;
 
-      exchangeRateOverTime.add(
-        _startTime + timeElapsed,
-        SD59x18.wrap(int256(priceData.exchangeRate * 1e9))
-      );
-    }
-  }
+  //     exchangeRateOverTime.add(
+  //       _startTime + timeElapsed,
+  //       SD59x18.wrap(int256(priceData.exchangeRate * 1e9))
+  //     );
+  //   }
+  // }
 
   function setUpExchangeRate(uint256 _startTime) public {
     exchangeRateOverTime = new SD59x18OverTime();
-    // Realistic test case
-    // POOL/UNDERLYING = 0.000001
-    // exchangeRateOverTime.add(startTime, wrap(1e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 2), wrap(1.5e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 4), wrap(2e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 6), wrap(4e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 8), wrap(3e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 10), wrap(1e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 12), wrap(5e17));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 14), wrap(1e17));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 16), wrap(5e16));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 18), wrap(1e16));
-
-    // Custom test case
-    exchangeRateOverTime.add(_startTime, wrap(1e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 1), wrap(1.02e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 2), wrap(1.05e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 3), wrap(1.02e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 4), wrap(0.98e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 5), wrap(0.98e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 6), wrap(1.12e18));
-    // exchangeRateOverTime.add(startTime + (DRAW_PERIOD_SECONDS * 7), wrap(1.5e18));
+    exchangeRateOverTime.add(_startTime, wrap(0.00038e18)); // WETH / USD
   }
 
   // Logging
@@ -126,5 +105,35 @@ contract Utils is CommonBase {
         );
       }
     }
+  }
+
+  function formatPrizeTokens(uint256 value) public view returns(string memory) {
+    string memory wholePart = "";
+    string memory decimalPart = "";
+
+    uint256 wholeNum = value / (10 ** 18);
+    uint256 decimalNum = value % (10 ** 18) / (10 ** 9); // remove the last 9 decimals
+
+    wholePart = vm.toString(wholeNum);
+    decimalPart = vm.toString(decimalNum);
+
+    // show 9 decimals
+    while(bytes(decimalPart).length < 9) {
+      decimalPart = string.concat("0", decimalPart);
+    }
+
+    string memory usdCentsPart = "";
+    uint256 amountInUSD = uint256(convert(convert(int256(value)).div(exchangeRateOverTime.get(block.timestamp))));
+    uint256 usdWhole = amountInUSD / (10 ** 18);
+    uint256 usdCents = amountInUSD % (10 ** 18);
+    uint256 usdCentsWhole = usdCents / (10 ** 16);
+    usdCentsPart = vm.toString(usdCentsWhole);
+
+    // show 2 decimals
+    while(bytes(usdCentsPart).length < 2) {
+      usdCentsPart = string.concat("0", usdCentsPart);
+    }
+
+    return string.concat(wholePart, ".", decimalPart, " (~$", vm.toString(usdWhole), ".", usdCentsPart, ")");
   }
 }

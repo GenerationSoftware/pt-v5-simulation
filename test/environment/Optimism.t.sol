@@ -5,7 +5,7 @@ import { console2 } from "forge-std/console2.sol";
 
 import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.sol";
 import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
-import { Vault } from "pt-v5-vault/Vault.sol";
+import { PrizeVault } from "pt-v5-vault/PrizeVault.sol";
 
 import { ClaimerAgent } from "../../src/agent/Claimer.sol";
 import { DrawAgent } from "../../src/agent/Draw.sol";
@@ -18,7 +18,7 @@ import { BaseTest } from "./Base.t.sol";
 contract OptimismTest is BaseTest {
   string simulatorCsvFile = string.concat(vm.projectRoot(), "/data/optimismSimulatorOut.csv");
   string simulatorCsvColumns =
-    "Draw ID, Timestamp, Available Yield, Available Vault Shares, Required Prize Tokens, Prize Pool Reserve, Pending Reserve Contributions, APR, TVL";
+    "Draw ID, Timestamp, Available Yield, Available Prize Vault Shares, Required Prize Tokens, Prize Pool Reserve, Pending Reserve Contributions, APR, TVL";
 
   uint256 duration;
   uint256 startTime;
@@ -33,7 +33,7 @@ contract OptimismTest is BaseTest {
 
   ILiquidationPair public pair;
   PrizePool public prizePool;
-  Vault public vault;
+  PrizeVault public vault;
 
   ClaimerAgent public claimerAgent;
   DrawAgent public drawAgent;
@@ -81,7 +81,7 @@ contract OptimismTest is BaseTest {
       numberOfTiers: MIN_NUMBER_OF_TIERS,
       reserveShares: RESERVE_SHARES,
       tierShares: TIER_SHARES,
-      smoothing: _getContributionsSmoothing()
+      drawTimeout: 30 // 30 draws = 1 month
     });
 
     claimerConfig = ClaimerConfig({
@@ -130,10 +130,10 @@ contract OptimismTest is BaseTest {
 
       // Cache data at beginning of tick
       uint256 availableYield = vault.liquidatableBalanceOf(address(vault));
-      uint256 availableVaultShares = pair.maxAmountOut();
+      uint256 availablePrizeVaultShares = pair.maxAmountOut();
       uint256 prizePoolReserve = prizePool.reserve();
-      uint256 requiredPrizeTokens = availableVaultShares != 0
-        ? pair.computeExactAmountIn(availableVaultShares)
+      uint256 requiredPrizeTokens = availablePrizeVaultShares != 0
+        ? pair.computeExactAmountIn(availablePrizeVaultShares)
         : 0;
 
       uint256 pendingReserveContributions = prizePool.pendingReserveContributions();
@@ -150,7 +150,7 @@ contract OptimismTest is BaseTest {
       logs[0] = prizePool.getLastAwardedDrawId();
       logs[1] = block.timestamp;
       logs[2] = availableYield;
-      logs[3] = availableVaultShares;
+      logs[3] = availablePrizeVaultShares;
       logs[4] = requiredPrizeTokens;
       logs[5] = prizePoolReserve;
       logs[6] = pendingReserveContributions;
@@ -194,10 +194,11 @@ contract OptimismTest is BaseTest {
   function printLiquidity() public view {
     uint reserve = env.prizePool().reserve() + env.prizePool().pendingReserveContributions();
     uint totalLiquidity = env.prizePool().getTotalContributedBetween(1, env.prizePool().getOpenDrawId());
+    uint finalPrizeLiquidity = env.prizePool().accountedBalance() - reserve;
     console2.log("");
-    console2.log("Total liquidity: ", totalLiquidity / 1e18);
-    console2.log("Final prize liquidity", (env.prizePool().accountedBalance() - reserve) / 1e18);
-    console2.log("Final reserve liquidity", (reserve) / 1e18);
+    console2.log("Total liquidity: ", formatPrizeTokens(totalLiquidity));
+    console2.log("Final prize liquidity", formatPrizeTokens(finalPrizeLiquidity));
+    console2.log("Final reserve liquidity", formatPrizeTokens(reserve));
   }
 
   function printDraws() public view {
@@ -233,7 +234,7 @@ contract OptimismTest is BaseTest {
       claimerAgent.totalCanaryPrizesClaimed();
     uint256 averageFeePerClaim = totalPrizes > 0 ? claimerAgent.totalFees() / totalPrizes : 0;
     console2.log("");
-    console2.log("Average fee per claim (cents): ", averageFeePerClaim / 1e16);
+    console2.log("Average fee per claim (WETH): ", formatPrizeTokens(averageFeePerClaim));
   }
 
   function printPrizeSummary() public view {
@@ -272,7 +273,7 @@ contract OptimismTest is BaseTest {
         "Final prize size for tier",
         tier,
         "is",
-        prizePool.getTierPrizeSize(tier) / 1e18
+        formatPrizeTokens(prizePool.getTierPrizeSize(tier))
       );
     }
   }

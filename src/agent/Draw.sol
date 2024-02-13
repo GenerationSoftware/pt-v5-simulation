@@ -7,7 +7,7 @@ import { StdCheats } from "forge-std/StdCheats.sol";
 
 import {
   IMessageDispatcherOptimism
-} from "erc5164-interfaces/interfaces/IMessageDispatcherOptimism.sol";
+} from "erc5164-interfaces/interfaces/extensions/IMessageDispatcherOptimism.sol";
 import { AuctionResult } from "pt-v5-draw-auction/interfaces/IAuction.sol";
 import {
   IRngAuctionRelayListener
@@ -52,7 +52,7 @@ contract DrawAgent is Config, Constant, StdCheats, Utils {
   }
 
   function check(uint256 _previousSequenceId) public returns (uint256) {
-    // awarding cost = start draw cost in POOL tokens + RNG cost in POOL tokens
+    // awarding cost = start draw cost in prize tokens + RNG cost in prize tokens
     uint256 awardingCost = (gasConfig.gasUsagePerStartDraw * gasConfig.gasPriceInPrizeTokens) +
       gasConfig.rngCostInPrizeTokens;
     uint256 minimumAwardingProfit = getMinimumProfit(awardingCost);

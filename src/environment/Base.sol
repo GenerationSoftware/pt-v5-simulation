@@ -33,7 +33,7 @@ contract BaseEnvironment is Config, Constant, Utils, StdCheats {
       _getTwabControllerOffset(_prizePoolConfig)
     );
 
-    prizeToken = new ERC20PermitMock("POOL");
+    prizeToken = new ERC20PermitMock("WETH");
 
     prizePool = new PrizePool(
       ConstructorParams({
@@ -41,11 +41,11 @@ contract BaseEnvironment is Config, Constant, Utils, StdCheats {
         twabController: twab,
         drawPeriodSeconds: _prizePoolConfig.drawPeriodSeconds,
         firstDrawOpensAt: _prizePoolConfig.firstDrawOpensAt,
-        smoothing: _prizePoolConfig.smoothing,
         grandPrizePeriodDraws: _prizePoolConfig.grandPrizePeriodDraws,
         numberOfTiers: _prizePoolConfig.numberOfTiers,
         tierShares: _prizePoolConfig.tierShares,
-        reserveShares: _prizePoolConfig.reserveShares
+        reserveShares: _prizePoolConfig.reserveShares,
+        drawTimeout: _prizePoolConfig.drawTimeout
       })
     );
 

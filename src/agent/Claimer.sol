@@ -6,7 +6,7 @@ import { Vm } from "forge-std/Vm.sol";
 
 import { Claimer } from "pt-v5-claimer/Claimer.sol";
 import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
-import { Vault } from "pt-v5-vault/Vault.sol";
+import { PrizeVault } from "pt-v5-vault/PrizeVault.sol";
 
 import { OptimismEnvironment } from "../environment/Optimism.sol";
 import { Config } from "../utils/Config.sol";
@@ -21,7 +21,7 @@ contract ClaimerAgent is Config, Utils {
 
   Claimer public claimer;
   PrizePool public prizePool;
-  Vault public vault;
+  PrizeVault public vault;
 
   struct Prize {
     uint8 tier;
