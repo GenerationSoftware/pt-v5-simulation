@@ -10,9 +10,6 @@
 	path = lib/pt-v5-claimer
 	url = https://github.com/generationsoftware/pt-v5-claimer
 	branch = main
-[submodule "lib/pt-owner-manager-contracts"]
-	path = lib/pt-owner-manager-contracts
-	url = https://github.com/GenerationSoftware/pt-owner-manager-contracts
 [submodule "lib/pt-v5-rng-contracts"]
 	path = lib/pt-v5-rng-contracts
 	url = https://github.com/generationsoftware/pt-v5-rng-contracts
