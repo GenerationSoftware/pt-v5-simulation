@@ -9,8 +9,8 @@ import { Config } from "./Config.sol";
 
 abstract contract Constant is Config {
   // Claimer
-  uint256 internal constant CLAIMER_MIN_FEE = 0.0001e18;
-  uint256 internal constant CLAIMER_MAX_FEE = 10000e18;
+  uint256 internal constant CLAIMER_MIN_FEE = 0.0000001e18;
+  uint256 internal constant CLAIMER_MAX_FEE = 1e18;
 
   // Environment
   uint256 internal constant NUM_USERS = 1;
@@ -23,14 +23,14 @@ abstract contract Constant is Config {
   uint24 internal constant GRAND_PRIZE_PERIOD_DRAWS = 365; // Once a year for daily draws
   uint8 internal constant MIN_NUMBER_OF_TIERS = 3;
   uint8 internal constant RESERVE_SHARES = 100;
-  uint8 internal constant TIER_SHARES = 50;
+  uint8 internal constant TIER_SHARES = 100;
 
 
   // RngAuctions
   uint64 internal constant AUCTION_DURATION = 6 hours;
   uint64 internal constant AUCTION_TARGET_TIME = 1 hours;
   uint256 internal constant AUCTION_MAX_REWARD = 10000e18;
-  UD2x18 internal constant FIRST_AUCTION_TARGET_REWARD_FRACTION = UD2x18.wrap(0.25e18); // 50%
+  UD2x18 internal constant FIRST_AUCTION_TARGET_REWARD_FRACTION = UD2x18.wrap(0.25e18); // 25%
 
   // CGDA Liquidator
 

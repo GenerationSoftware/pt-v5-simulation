@@ -5,20 +5,38 @@ import { console2 } from "forge-std/console2.sol";
 
 import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.sol";
 import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
-import { Vault } from "pt-v5-vault/Vault.sol";
+import { PrizeVault } from "pt-v5-vault/PrizeVault.sol";
 
 import { ClaimerAgent } from "../../src/agent/Claimer.sol";
 import { DrawAgent } from "../../src/agent/Draw.sol";
 import { LiquidatorAgent } from "../../src/agent/Liquidator.sol";
 
-import { OptimismEnvironment } from "../../src/environment/Optimism.sol";
+import { SingleChainEnvironment } from "../../src/environment/SingleChain.sol";
 
-import { BaseTest } from "./Base.t.sol";
+import { CommonBase } from "forge-std/Base.sol";
+import { StdCheats } from "forge-std/StdCheats.sol";
+import { Test } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
 
-contract OptimismTest is BaseTest {
-  string simulatorCsvFile = string.concat(vm.projectRoot(), "/data/optimismSimulatorOut.csv");
+import { Config } from "../../src/utils/Config.sol";
+import { Constant } from "../../src/utils/Constant.sol";
+import { Utils } from "../../src/utils/Utils.sol";
+
+import { UintOverTime } from "../utils/UintOverTime.sol";
+
+contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, Test, Utils {
+
+  UintOverTime public aprOverTime;
+
+  // NOTE: Order matters for ABI decode.
+  struct HistoricApr {
+    uint256 apr;
+    uint256 timestamp;
+  }
+
+  string simulatorCsvFile = string.concat(vm.projectRoot(), "/data/singleChainSimulatorOut.csv");
   string simulatorCsvColumns =
-    "Draw ID, Timestamp, Available Yield, Available Vault Shares, Required Prize Tokens, Prize Pool Reserve, Pending Reserve Contributions, APR, TVL";
+    "Draw ID, Timestamp, Available Yield, Available Prize Vault Shares, Required Prize Tokens, Prize Pool Reserve, Pending Reserve Contributions, APR, TVL";
 
   uint256 duration;
   uint256 startTime;
@@ -29,11 +47,12 @@ contract OptimismTest is BaseTest {
   PrizePoolConfig public prizePoolConfig;
   ClaimerConfig public claimerConfig;
   RngAuctionConfig public rngAuctionConfig;
-  OptimismEnvironment public env;
+  SingleChainEnvironment public env;
+  GasConfig public gasConfig;
 
   ILiquidationPair public pair;
   PrizePool public prizePool;
-  Vault public vault;
+  PrizeVault public vault;
 
   ClaimerAgent public claimerAgent;
   DrawAgent public drawAgent;
@@ -81,7 +100,7 @@ contract OptimismTest is BaseTest {
       numberOfTiers: MIN_NUMBER_OF_TIERS,
       reserveShares: RESERVE_SHARES,
       tierShares: TIER_SHARES,
-      smoothing: _getContributionsSmoothing()
+      drawTimeout: 30 // 30 draws = 1 month
     });
 
     claimerConfig = ClaimerConfig({
@@ -98,7 +117,16 @@ contract OptimismTest is BaseTest {
       firstAuctionTargetRewardFraction: FIRST_AUCTION_TARGET_REWARD_FRACTION
     });
 
-    env = new OptimismEnvironment(prizePoolConfig, claimerConfig, rngAuctionConfig);
+    gasConfig = GasConfig({
+      gasPriceInPrizeTokens: 1.29 gwei,
+      gasUsagePerStartDraw: 152_473,
+      gasUsagePerRelayDraw: 405_000,
+      gasUsagePerClaim: 150_000,
+      gasUsagePerLiquidation: 500_000,
+      rngCostInPrizeTokens: 0.0005e18
+    });
+
+    env = new SingleChainEnvironment(prizePoolConfig, claimerConfig, rngAuctionConfig, gasConfig);
     env.initializeCgdaLiquidator(
       CgdaLiquidatorConfig({
         decayConstant: _getDecayConstant(),
@@ -130,10 +158,10 @@ contract OptimismTest is BaseTest {
 
       // Cache data at beginning of tick
       uint256 availableYield = vault.liquidatableBalanceOf(address(vault));
-      uint256 availableVaultShares = pair.maxAmountOut();
+      uint256 availablePrizeVaultShares = pair.maxAmountOut();
       uint256 prizePoolReserve = prizePool.reserve();
-      uint256 requiredPrizeTokens = availableVaultShares != 0
-        ? pair.computeExactAmountIn(availableVaultShares)
+      uint256 requiredPrizeTokens = availablePrizeVaultShares != 0
+        ? pair.computeExactAmountIn(availablePrizeVaultShares)
         : 0;
 
       uint256 pendingReserveContributions = prizePool.pendingReserveContributions();
@@ -150,7 +178,7 @@ contract OptimismTest is BaseTest {
       logs[0] = prizePool.getLastAwardedDrawId();
       logs[1] = block.timestamp;
       logs[2] = availableYield;
-      logs[3] = availableVaultShares;
+      logs[3] = availablePrizeVaultShares;
       logs[4] = requiredPrizeTokens;
       logs[5] = prizePoolReserve;
       logs[6] = pendingReserveContributions;
@@ -194,10 +222,11 @@ contract OptimismTest is BaseTest {
   function printLiquidity() public view {
     uint reserve = env.prizePool().reserve() + env.prizePool().pendingReserveContributions();
     uint totalLiquidity = env.prizePool().getTotalContributedBetween(1, env.prizePool().getOpenDrawId());
+    uint finalPrizeLiquidity = env.prizePool().accountedBalance() - reserve;
     console2.log("");
-    console2.log("Total liquidity: ", totalLiquidity / 1e18);
-    console2.log("Final prize liquidity", (env.prizePool().accountedBalance() - reserve) / 1e18);
-    console2.log("Final reserve liquidity", (reserve) / 1e18);
+    console2.log("Total liquidity: ", formatPrizeTokens(totalLiquidity));
+    console2.log("Final prize liquidity", formatPrizeTokens(finalPrizeLiquidity));
+    console2.log("Final reserve liquidity", formatPrizeTokens(reserve));
   }
 
   function printDraws() public view {
@@ -233,7 +262,7 @@ contract OptimismTest is BaseTest {
       claimerAgent.totalCanaryPrizesClaimed();
     uint256 averageFeePerClaim = totalPrizes > 0 ? claimerAgent.totalFees() / totalPrizes : 0;
     console2.log("");
-    console2.log("Average fee per claim (cents): ", averageFeePerClaim / 1e16);
+    console2.log("Average fee per claim (WETH): ", formatPrizeTokens(averageFeePerClaim));
   }
 
   function printPrizeSummary() public view {
@@ -272,8 +301,66 @@ contract OptimismTest is BaseTest {
         "Final prize size for tier",
         tier,
         "is",
-        prizePool.getTierPrizeSize(tier) / 1e18
+        formatPrizeTokens(prizePool.getTierPrizeSize(tier))
       );
+    }
+  }
+
+  function setUpApr(uint256 _startTime) public {
+    aprOverTime = new UintOverTime();
+
+    // Realistic test case
+    aprOverTime.add(_startTime, Constant.SIMPLE_APR);
+  }
+
+  function setUpAprFromJson(uint256 _startTime) public {
+    aprOverTime = new UintOverTime();
+
+    string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicAaveApr.json");
+    string memory jsonData = vm.readFile(jsonFile);
+
+    // NOTE: Options for APR are: .usd or .eth
+    bytes memory usdData = vm.parseJson(jsonData, "$.usd");
+    HistoricApr[] memory aprData = abi.decode(usdData, (HistoricApr[]));
+
+    uint256 initialTimestamp = aprData[0].timestamp;
+    for (uint256 i = 0; i < aprData.length; i++) {
+      HistoricApr memory rowData = aprData[i];
+      aprOverTime.add(_startTime + (rowData.timestamp - initialTimestamp), rowData.apr);
+    }
+  }
+
+  modifier recordEvents() {
+    string memory filePath = string.concat(vm.projectRoot(), "/data/rawEventsOut.csv");
+    vm.writeFile(filePath, "");
+    vm.writeLine(filePath, "Event Number, Emitter, Data, Topic 0, Topic 1, Topic 2, Topic 3,");
+    vm.recordLogs();
+
+    _;
+
+    Vm.Log[] memory entries = vm.getRecordedLogs();
+
+    for (uint256 i = 0; i < entries.length; i++) {
+      Vm.Log memory log = entries[i];
+
+      string memory row;
+      row = string.concat(
+        vm.toString(i),
+        ",",
+        vm.toString(log.emitter),
+        ",",
+        vm.toString(log.data),
+        ","
+      );
+
+      for (uint256 j = 0; j < log.topics.length; ++j) {
+        row = string.concat(row, vm.toString(log.topics[j]), ",");
+      }
+      for (uint256 j = log.topics.length - 1; j < 4; ++j) {
+        row = string.concat(row, "0x0,");
+      }
+
+      vm.writeLine(filePath, row);
     }
   }
 }

@@ -11,7 +11,7 @@ import { LiquidationPair } from "pt-v5-cgda-liquidator/LiquidationPair.sol";
 import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
 import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
 
-import { OptimismEnvironment } from "../environment/Optimism.sol";
+import { SingleChainEnvironment } from "../environment/SingleChain.sol";
 
 import { Config } from "../utils/Config.sol";
 import { Constant } from "../utils/Constant.sol";
@@ -22,8 +22,7 @@ contract LiquidatorAgent is Config, Constant, Utils {
   string liquidatorCsvColumns =
     "Draw ID, Timestamp, Elapsed Time, Elapsed Percent, Availability, Amount In, Amount Out, Exchange Rate, Market Exchange Rate, Profit, Efficiency, Remaining Yield";
 
-  OptimismGasConfig gasConfig = optimismGasConfig();
-  OptimismEnvironment public env;
+  SingleChainEnvironment public env;
 
   PrizePool public prizePool;
   ERC20PermitMock public prizeToken;
@@ -33,7 +32,7 @@ contract LiquidatorAgent is Config, Constant, Utils {
   uint256 totalApproxProfit;
   string liquidatorCsv;
 
-  constructor(OptimismEnvironment _env) {
+  constructor(SingleChainEnvironment _env) {
     env = _env;
 
     prizePool = env.prizePool();
@@ -46,8 +45,8 @@ contract LiquidatorAgent is Config, Constant, Utils {
   }
 
   function check(SD59x18 exchangeRatePrizeTokenToUnderlying) public {
-    uint256 gasCostInPrizeTokens = gasConfig.gasPriceInPrizeTokens *
-      gasConfig.gasUsagePerLiquidation;
+    uint256 gasCostInPrizeTokens = env.gasConfig().gasPriceInPrizeTokens *
+      env.gasConfig().gasUsagePerLiquidation;
     uint256 maxAmountOut = env.pair().maxAmountOut();
 
     // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ checking maxAmountOut", maxAmountOut / 1e18);

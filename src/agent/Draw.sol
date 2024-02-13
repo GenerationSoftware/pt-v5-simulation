@@ -7,7 +7,7 @@ import { StdCheats } from "forge-std/StdCheats.sol";
 
 import {
   IMessageDispatcherOptimism
-} from "erc5164-interfaces/interfaces/IMessageDispatcherOptimism.sol";
+} from "erc5164-interfaces/interfaces/extensions/IMessageDispatcherOptimism.sol";
 import { AuctionResult } from "pt-v5-draw-auction/interfaces/IAuction.sol";
 import {
   IRngAuctionRelayListener
@@ -15,12 +15,12 @@ import {
 import { RemoteOwner } from "remote-owner/RemoteOwner.sol";
 
 import {
-  BaseEnvironment,
+  SingleChainEnvironment,
   PrizePool,
   RngAuction,
   RngAuctionRelayerDirect,
   RngRelayAuction
-} from "../environment/Base.sol";
+} from "../environment/SingleChain.sol";
 
 import { Config } from "../utils/Config.sol";
 import { Constant } from "../utils/Constant.sol";
@@ -31,8 +31,7 @@ contract DrawAgent is Config, Constant, StdCheats, Utils {
   string relayCostCsvColumns =
     "Draw ID, Timestamp, Awarding Cost, Awarding Profit, Relay Cost, Relay Profit";
 
-  BaseEnvironment public env;
-  EthereumGasConfig gasConfig = ethereumGasConfig();
+  SingleChainEnvironment public env;
 
   IMessageDispatcherOptimism messageDispatcherOptimism =
     IMessageDispatcherOptimism(makeAddr("messageDispatcherOptimism"));
@@ -45,20 +44,20 @@ contract DrawAgent is Config, Constant, StdCheats, Utils {
   uint256 public drawCount;
   uint256 public constant SEED = 0x23423;
 
-  constructor(BaseEnvironment _env) {
+  constructor(SingleChainEnvironment _env) {
     env = _env;
 
     initOutputFileCsv(relayCostCsvFile, relayCostCsvColumns);
   }
 
   function check(uint256 _previousSequenceId) public returns (uint256) {
-    // awarding cost = start draw cost in POOL tokens + RNG cost in POOL tokens
-    uint256 awardingCost = (gasConfig.gasUsagePerStartDraw * gasConfig.gasPriceInPrizeTokens) +
-      gasConfig.rngCostInPrizeTokens;
+    // awarding cost = start draw cost in prize tokens + RNG cost in prize tokens
+    uint256 awardingCost = (env.gasConfig().gasUsagePerStartDraw * env.gasConfig().gasPriceInPrizeTokens) +
+      env.gasConfig().rngCostInPrizeTokens;
     uint256 minimumAwardingProfit = getMinimumProfit(awardingCost);
     uint256 awardingProfit;
 
-    uint256 relayCost = gasConfig.gasUsagePerRelayDraw * gasConfig.gasPriceInPrizeTokens;
+    uint256 relayCost = env.gasConfig().gasUsagePerRelayDraw * env.gasConfig().gasPriceInPrizeTokens;
     uint256 minimumRelayProfit = getMinimumProfit(relayCost);
     uint256 relayProfit;
 
