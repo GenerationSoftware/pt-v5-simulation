@@ -40,38 +40,13 @@ abstract contract Config {
   }
 
   // Gas configs
-  struct EthereumGasConfig {
+  struct GasConfig {
     uint256 gasPriceInPrizeTokens;
     uint256 gasUsagePerStartDraw;
     uint256 gasUsagePerRelayDraw;
+    uint256 gasUsagePerClaim;
+    uint256 gasUsagePerLiquidation;
     uint256 rngCostInPrizeTokens;
   }
 
-  struct OptimismGasConfig {
-    uint256 gasPriceInPrizeTokens;
-    uint256 gasUsagePerClaim;
-    uint256 gasUsagePerLiquidation;
-  }
-
-  function ethereumGasConfig() public pure returns (EthereumGasConfig memory) {
-    // Gas price is at 34 gwei
-    // It costs about the same gas to start the draw as it does in LINK costs
-    uint256 gasPrice = 34 gwei;
-    return
-      EthereumGasConfig({
-        gasPriceInPrizeTokens: gasPrice,
-        gasUsagePerStartDraw: 152_473,
-        gasUsagePerRelayDraw: 405_000,
-        rngCostInPrizeTokens: 152_473 * gasPrice
-      });
-  }
-
-  function optimismGasConfig() public pure returns (OptimismGasConfig memory) {
-    return
-      OptimismGasConfig({
-        gasPriceInPrizeTokens: 0.3 gwei, // approximating that OP gas is about than 1% mainnet gas
-        gasUsagePerClaim: 150_000,
-        gasUsagePerLiquidation: 500_000
-      });
-  }
 }

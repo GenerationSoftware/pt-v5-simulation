@@ -8,7 +8,7 @@ import { Claimer } from "pt-v5-claimer/Claimer.sol";
 import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
 import { PrizeVault } from "pt-v5-vault/PrizeVault.sol";
 
-import { OptimismEnvironment } from "../environment/Optimism.sol";
+import { SingleChainEnvironment } from "../environment/SingleChain.sol";
 import { Config } from "../utils/Config.sol";
 import { Utils } from "../utils/Utils.sol";
 
@@ -16,8 +16,7 @@ contract ClaimerAgent is Config, Utils {
   string claimerCsvFile = string.concat(vm.projectRoot(), "/data/claimerOut.csv");
   string claimerCsvColumns = "Draw ID, Tier, Winner, Prize Index, Fees For Batch";
 
-  OptimismGasConfig gasConfig = optimismGasConfig();
-  OptimismEnvironment public env;
+  SingleChainEnvironment public env;
 
   Claimer public claimer;
   PrizePool public prizePool;
@@ -52,7 +51,7 @@ contract ClaimerAgent is Config, Utils {
 
   uint logVerbosity;
 
-  constructor(OptimismEnvironment _env, uint _logVerbosity) {
+  constructor(SingleChainEnvironment _env, uint _logVerbosity) {
     env = _env;
     logVerbosity = _logVerbosity;
 
@@ -95,7 +94,7 @@ contract ClaimerAgent is Config, Utils {
         // see if any are worth claiming
         {
           uint claimFees = claimer.computeTotalFees(tier, tierPrizes);
-          uint cost = tierPrizes * gasConfig.gasUsagePerClaim * gasConfig.gasPriceInPrizeTokens;
+          uint cost = tierPrizes * env.gasConfig().gasUsagePerClaim * env.gasConfig().gasPriceInPrizeTokens;
           if (isLogging(3)) {
             console2.log(
               "\tclaimFees for drawId %s tier %s with prize size %e:",
@@ -332,7 +331,7 @@ contract ClaimerAgent is Config, Utils {
     if (isLogging(2)) {
       console2.log(
         "+++++++++++++++++++++ Prize Claim Cost (cents):",
-        (gasConfig.gasUsagePerClaim * gasConfig.gasPriceInPrizeTokens) / 1e16
+        (env.gasConfig().gasUsagePerClaim * env.gasConfig().gasPriceInPrizeTokens) / 1e16
       );
       console2.log(
         "+++++++++++++++++++++ Draw",

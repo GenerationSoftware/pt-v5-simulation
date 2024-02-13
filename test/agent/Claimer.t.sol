@@ -5,14 +5,14 @@ import { console2 } from "forge-std/console2.sol";
 
 import { Test } from "forge-std/Test.sol";
 
-import { PrizePool } from "../../src/environment/Base.sol";
-import { OptimismEnvironment, PrizeVault, Claimer } from "../../src/environment/Optimism.sol";
+import { PrizePool } from "../../src/environment/SingleChain.sol";
+import { SingleChainEnvironment, PrizeVault, Claimer } from "../../src/environment/SingleChain.sol";
 import { ClaimerAgent } from "../../src/agent/Claimer.sol";
 
 import { Config } from "../../src/utils/Config.sol";
 
 contract ClaimerAgentTest is Config, Test {
-  OptimismEnvironment env = OptimismEnvironment(address(0xffff1));
+  SingleChainEnvironment env = SingleChainEnvironment(address(0xffff1));
   PrizePool prizePool = PrizePool(address(0xffff2));
   PrizeVault vault = PrizeVault(address(0xffff5));
   Claimer claimer = Claimer(address(0xffff6));
@@ -25,12 +25,19 @@ contract ClaimerAgentTest is Config, Test {
   uint256 numTiers = 2;
 
   function setUp() public {
-    vm.etch(address(env), "OptimismEnvironment");
+    vm.etch(address(env), "SingleChainEnvironment");
     vm.etch(address(prizePool), "prizePool");
     vm.etch(address(vault), "vault");
     vm.etch(address(claimer), "claimer");
 
-    OptimismGasConfig memory gasConfig = optimismGasConfig();
+    GasConfig memory gasConfig = GasConfig({
+      gasPriceInPrizeTokens: 0.3 gwei,
+      gasUsagePerStartDraw: 152_473,
+      gasUsagePerRelayDraw: 405_000,
+      gasUsagePerClaim: 150_000,
+      gasUsagePerLiquidation: 500_000,
+      rngCostInPrizeTokens: 0.0005e18
+    });
 
     vm.mockCall(
       address(env),
@@ -41,7 +48,7 @@ contract ClaimerAgentTest is Config, Test {
     vm.mockCall(address(env), abi.encodeWithSignature("claimer()"), abi.encode(address(claimer)));
     vm.mockCall(
       address(env),
-      abi.encodeWithSelector(OptimismEnvironment.userCount.selector),
+      abi.encodeWithSelector(SingleChainEnvironment.userCount.selector),
       abi.encode(2)
     );
     vm.mockCall(address(env), abi.encodeWithSignature("users(uint256)", 0), abi.encode(user1));

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.19;
 
+import { StdCheats } from "forge-std/StdCheats.sol";
+
 import { console2 } from "forge-std/console2.sol";
 import { SD59x18, convert } from "prb-math/SD59x18.sol";
 import { UD2x18 } from "prb-math/UD2x18.sol";
@@ -8,6 +10,15 @@ import { UD2x18 } from "prb-math/UD2x18.sol";
 import { PrizeVault } from "pt-v5-vault/PrizeVault.sol";
 import { PrizeVaultFactory } from "pt-v5-vault/PrizeVaultFactory.sol";
 import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
+
+import { RNGBlockhash } from "rng/RNGBlockhash.sol";
+import { RNGInterface } from "rng/RNGInterface.sol";
+import { RngAuction } from "pt-v5-draw-auction/RngAuction.sol";
+import { RngAuctionRelayerDirect } from "pt-v5-draw-auction/RngAuctionRelayerDirect.sol";
+import { RngRelayAuction } from "pt-v5-draw-auction/RngRelayAuction.sol";
+
+import { TwabController } from "pt-v5-twab-controller/TwabController.sol";
+import { PrizePool, ConstructorParams } from "pt-v5-prize-pool/PrizePool.sol";
 
 import { Claimer } from "pt-v5-claimer/Claimer.sol";
 
@@ -19,9 +30,19 @@ import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
 
 import { YieldVaultMintRate } from "../YieldVaultMintRate.sol";
 
-import { BaseEnvironment } from "./Base.sol";
+import { Config } from "../utils/Config.sol";
+import { Constant } from "../utils/Constant.sol";
+import { Utils } from "../utils/Utils.sol";
 
-contract OptimismEnvironment is BaseEnvironment {
+contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
+  ERC20PermitMock public prizeToken;
+  PrizePool public prizePool;
+  RNGInterface public rng;
+  RngAuction public rngAuction;
+  RngAuctionRelayerDirect public rngAuctionRelayerDirect;
+  RngRelayAuction public rngRelayAuction;
+  TwabController public twab;
+
   ERC20PermitMock public underlyingToken;
   PrizeVaultFactory public vaultFactory;
   PrizeVault public vault;
@@ -32,11 +53,61 @@ contract OptimismEnvironment is BaseEnvironment {
 
   address[] public users;
 
+  GasConfig internal _gasConfig;
+
   constructor(
     PrizePoolConfig memory _prizePoolConfig,
     ClaimerConfig memory _claimerConfig,
-    RngAuctionConfig memory _rngAuctionConfig
-  ) BaseEnvironment(_prizePoolConfig, _rngAuctionConfig) {
+    RngAuctionConfig memory _rngAuctionConfig,
+    GasConfig memory gasConfig_
+  ) {
+    _gasConfig = gasConfig_;
+
+    twab = new TwabController(
+      _prizePoolConfig.drawPeriodSeconds,
+      _getTwabControllerOffset(_prizePoolConfig)
+    );
+
+    prizeToken = new ERC20PermitMock("WETH");
+
+    prizePool = new PrizePool(
+      ConstructorParams({
+        prizeToken: prizeToken,
+        twabController: twab,
+        drawPeriodSeconds: _prizePoolConfig.drawPeriodSeconds,
+        firstDrawOpensAt: _prizePoolConfig.firstDrawOpensAt,
+        grandPrizePeriodDraws: _prizePoolConfig.grandPrizePeriodDraws,
+        numberOfTiers: _prizePoolConfig.numberOfTiers,
+        tierShares: _prizePoolConfig.tierShares,
+        reserveShares: _prizePoolConfig.reserveShares,
+        drawTimeout: _prizePoolConfig.drawTimeout
+      })
+    );
+
+    rng = new RNGBlockhash();
+    rngAuction = new RngAuction(
+      rng,
+      address(this),
+      DRAW_PERIOD_SECONDS,
+      _rngAuctionConfig.sequenceOffset,
+      _rngAuctionConfig.auctionDuration,
+      _rngAuctionConfig.auctionTargetTime,
+      _rngAuctionConfig.firstAuctionTargetRewardFraction
+    );
+
+    rngAuctionRelayerDirect = new RngAuctionRelayerDirect(rngAuction);
+
+    rngRelayAuction = new RngRelayAuction(
+      prizePool,
+      _rngAuctionConfig.auctionDuration,
+      _rngAuctionConfig.auctionTargetTime,
+      address(rngAuctionRelayerDirect),
+      _getFirstRngRelayAuctionTargetRewardFraction(),
+      AUCTION_MAX_REWARD
+    );
+
+    prizePool.setDrawManager(address(rngRelayAuction));
+
     underlyingToken = new ERC20PermitMock("USDC");
     yieldVault = new YieldVaultMintRate(underlyingToken, "Yearnish yUSDC", "yUSDC", address(this));
 
@@ -63,6 +134,10 @@ contract OptimismEnvironment is BaseEnvironment {
         address(this)
       )
     );
+  }
+
+  function gasConfig() public view returns(GasConfig memory) {
+    return _gasConfig;
   }
 
   function initializeCgdaLiquidator(
