@@ -45,3 +45,6 @@
 [submodule "lib/remote-owner"]
 	path = lib/remote-owner
 	url = https://github.com/GenerationSoftware/remote-owner
+[submodule "lib/pt-v5-draw-manager"]
+	path = lib/pt-v5-draw-manager
+	url = https://github.com/GenerationSoftware/pt-v5-draw-manager
