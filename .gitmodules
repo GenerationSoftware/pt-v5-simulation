@@ -51,3 +51,6 @@
 [submodule "lib/pt-v5-rng-blockhash"]
 	path = lib/pt-v5-rng-blockhash
 	url = https://github.com/GenerationSoftware/pt-v5-rng-blockhash
+[submodule "lib/pt-v5-prize-pool-fee-burner"]
+	path = lib/pt-v5-prize-pool-fee-burner
+	url = https://github.com/GenerationSoftware/pt-v5-prize-pool-fee-burner
