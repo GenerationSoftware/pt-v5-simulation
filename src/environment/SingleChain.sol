@@ -11,11 +11,8 @@ import { PrizeVault } from "pt-v5-vault/PrizeVault.sol";
 import { PrizeVaultFactory } from "pt-v5-vault/PrizeVaultFactory.sol";
 import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 
-import { RNGBlockhash } from "rng/RNGBlockhash.sol";
-import { RNGInterface } from "rng/RNGInterface.sol";
-import { RngAuction } from "pt-v5-draw-auction/RngAuction.sol";
-import { RngAuctionRelayerDirect } from "pt-v5-draw-auction/RngAuctionRelayerDirect.sol";
-import { RngRelayAuction } from "pt-v5-draw-auction/RngRelayAuction.sol";
+import { RngBlockhash } from "pt-v5-rng-blockhash/RngBlockhash.sol";
+import { DrawManager } from "pt-v5-draw-manager/DrawManager.sol";
 
 import { TwabController } from "pt-v5-twab-controller/TwabController.sol";
 import { PrizePool, ConstructorParams } from "pt-v5-prize-pool/PrizePool.sol";
@@ -37,10 +34,10 @@ import { Utils } from "../utils/Utils.sol";
 contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
   ERC20PermitMock public prizeToken;
   PrizePool public prizePool;
-  RNGInterface public rng;
-  RngAuction public rngAuction;
-  RngAuctionRelayerDirect public rngAuctionRelayerDirect;
-  RngRelayAuction public rngRelayAuction;
+  RngBlockhash public rng;
+
+  DrawManager public drawManager;
+  
   TwabController public twab;
 
   ERC20PermitMock public underlyingToken;
@@ -84,7 +81,9 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
       })
     );
 
-    rng = new RNGBlockhash();
+
+
+    rng = new RngBlockhash();
     rngAuction = new RngAuction(
       rng,
       address(this),
