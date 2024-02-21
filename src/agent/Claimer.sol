@@ -94,7 +94,7 @@ contract ClaimerAgent is Config, Utils {
         // see if any are worth claiming
         {
           uint claimFees = claimer.computeTotalFees(tier, tierPrizes);
-          uint cost = tierPrizes * env.gasConfig().gasUsagePerClaim * env.gasConfig().gasPriceInPrizeTokens;
+          uint cost = tierPrizes * env.gasConfig().claimCostInEth;
           if (isLogging(3)) {
             console2.log(
               "\tclaimFees for drawId %s tier %s with prize size %e:",
@@ -143,21 +143,6 @@ contract ClaimerAgent is Config, Utils {
           winnersLength,
           countPrizeIndicesPerWinner(nextPrizeIndex, targetClaimCount, winnersLength)
         );
-
-        // if (isLogging(2)) {
-        //   console2.log(
-        //     "+++++++++++++++++++++ $$$$$$$$$$$$$$$$$$ Claiming prizes",
-        //     tier,
-        //     targetClaimCount
-        //   );
-        // }
-        //
-        // if (tier == 0) {
-        //   console2.log(
-        //     "+++++++++++++++++++++ $ Claiming Grand prize of ",
-        //     prizePool.getTierPrizeSize(0)
-        //   );
-        // }
 
         uint feesForBatch = claimer.claimPrizes(
           vault,
@@ -330,8 +315,8 @@ contract ClaimerAgent is Config, Utils {
 
     if (isLogging(2)) {
       console2.log(
-        "+++++++++++++++++++++ Prize Claim Cost (cents):",
-        (env.gasConfig().gasUsagePerClaim * env.gasConfig().gasPriceInPrizeTokens) / 1e16
+        "+++++++++++++++++++++ Prize Claim Cost:",
+        env.gasConfig().claimCostInEth
       );
       console2.log(
         "+++++++++++++++++++++ Draw",

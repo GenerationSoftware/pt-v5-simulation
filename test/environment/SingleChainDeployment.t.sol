@@ -6,12 +6,15 @@ import { console2 } from "forge-std/console2.sol";
 import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.sol";
 import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
 import { PrizeVault } from "pt-v5-vault/PrizeVault.sol";
+import { SD59x18, convert } from "prb-math/SD59x18.sol";
 
 import { ClaimerAgent } from "../../src/agent/Claimer.sol";
 import { DrawAgent } from "../../src/agent/Draw.sol";
 import { LiquidatorAgent } from "../../src/agent/Liquidator.sol";
 
 import { SingleChainEnvironment } from "../../src/environment/SingleChain.sol";
+
+import { SD59x18OverTime } from "../../src/utils/SD59x18OverTime.sol";
 
 import { CommonBase } from "forge-std/Base.sol";
 import { StdCheats } from "forge-std/StdCheats.sol";
@@ -27,6 +30,9 @@ import { UintOverTime } from "../utils/UintOverTime.sol";
 contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, Test, Utils {
 
   UintOverTime public aprOverTime;
+
+  SD59x18OverTime public wethUsdValueOverTime; // Value of WETH over time (USD / WETH)
+  SD59x18OverTime public poolUsdValueOverTime; // Value of the pool token over time (USD / POOL)
 
   // NOTE: Order matters for ABI decode.
   struct HistoricApr {
@@ -86,6 +92,8 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
 
     setUpExchangeRate(startTime);
     // setUpExchangeRateFromJson(startTime);
+    wethUsdValueOverTime.add(startTime, convert(3000).div(convert(1e18))); // $3000 USD / WETH
+    poolUsdValueOverTime.add(startTime, convert(1).div(convert(1e18))); // $1 USD / POOL
 
     setUpApr(startTime);
     // setUpAprFromJson(startTime);
@@ -94,6 +102,7 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
     console2.log("Draw Period (sec): ", DRAW_PERIOD_SECONDS);
 
     prizePoolConfig = PrizePoolConfig({
+      tierLiquidityUtilizationRate: 1e18,
       drawPeriodSeconds: DRAW_PERIOD_SECONDS,
       grandPrizePeriodDraws: GRAND_PRIZE_PERIOD_DRAWS,
       firstDrawOpensAt: firstDrawOpensAt,
@@ -118,19 +127,17 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
     });
 
     gasConfig = GasConfig({
-      gasPriceInPrizeTokens: 1.29 gwei,
-      gasUsagePerStartDraw: 152_473,
-      gasUsagePerRelayDraw: 405_000,
-      gasUsagePerClaim: 150_000,
-      gasUsagePerLiquidation: 500_000,
-      rngCostInPrizeTokens: 0.0005e18
+      startDrawCostInEth: 0.3 gwei * 152_473,
+      awardDrawCostInEth: 0.3 gwei * 405_000,
+      claimCostInEth: 0.3 gwei * 500_000,
+      liquidationCostInEth: 0.3 gwei * 500_000
     });
 
     env = new SingleChainEnvironment(prizePoolConfig, claimerConfig, rngAuctionConfig, gasConfig);
     env.initializeCgdaLiquidator(
+      wethUsdValueOverTime.get(block.timestamp),
+      poolUsdValueOverTime.get(block.timestamp),
       CgdaLiquidatorConfig({
-        decayConstant: _getDecayConstant(),
-        exchangeRatePrizeTokenToUnderlying: exchangeRateOverTime.get(startTime),
         periodLength: DRAW_PERIOD_SECONDS,
         periodOffset: uint32(startTime),
         targetFirstSaleTime: _getTargetFirstSaleTime()
@@ -146,9 +153,7 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
     liquidatorAgent = new LiquidatorAgent(env);
   }
 
-  function testOptimism() public noGasMetering recordEvents {
-    uint256 previousDrawAuctionSequenceId;
-
+  function testSingleChain() public noGasMetering recordEvents {
     env.addUsers(NUM_USERS, totalValueLocked / NUM_USERS);
     env.setApr(aprOverTime.get(startTime));
 
@@ -158,6 +163,8 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
 
       // Cache data at beginning of tick
       uint256 availableYield = vault.liquidatableBalanceOf(address(vault));
+      // console2.log("availableYield: ", availableYield);
+      // console2.log("elapsed time: ", i - startTime);
       uint256 availablePrizeVaultShares = pair.maxAmountOut();
       uint256 prizePoolReserve = prizePool.reserve();
       uint256 requiredPrizeTokens = availablePrizeVaultShares != 0
@@ -170,8 +177,8 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
       env.setApr(aprOverTime.get(i));
       env.mintYield();
 
-      liquidatorAgent.check(exchangeRateOverTime.get(block.timestamp));
-      previousDrawAuctionSequenceId = drawAgent.check(previousDrawAuctionSequenceId);
+      liquidatorAgent.check(wethUsdValueOverTime.get(block.timestamp), poolUsdValueOverTime.get(block.timestamp));
+      drawAgent.check();
       claimerAgent.check();
 
       uint256[] memory logs = new uint256[](9);
@@ -186,6 +193,8 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
       logs[8] = totalValueLocked;
 
       logUint256ToCsv(simulatorCsvFile, logs);
+
+      // console2.log("TOTAL FEE TO USE TO BURN: %e", env.prizePool().rewardBalance(address(env.feeBurner())));
     }
 
     env.removeUsers();
@@ -225,6 +234,7 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
     uint finalPrizeLiquidity = env.prizePool().accountedBalance() - reserve;
     console2.log("");
     console2.log("Total liquidity: ", formatPrizeTokens(totalLiquidity));
+    console2.log("Total burned: %e POOL", liquidatorAgent.burnedPool());
     console2.log("Final prize liquidity", formatPrizeTokens(finalPrizeLiquidity));
     console2.log("Final reserve liquidity", formatPrizeTokens(reserve));
   }
@@ -313,6 +323,11 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
     aprOverTime.add(_startTime, Constant.SIMPLE_APR);
   }
 
+  function setUpExchangeRate(uint256 _startTime) public {
+    wethUsdValueOverTime = new SD59x18OverTime();
+    poolUsdValueOverTime = new SD59x18OverTime();
+  }
+
   function setUpAprFromJson(uint256 _startTime) public {
     aprOverTime = new UintOverTime();
 
@@ -362,5 +377,36 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
 
       vm.writeLine(filePath, row);
     }
+  }
+
+
+  function formatPrizeTokens(uint256 value) public view returns(string memory) {
+    string memory wholePart = "";
+    string memory decimalPart = "";
+
+    uint256 wholeNum = value / (10 ** 18);
+    uint256 decimalNum = value % (10 ** 18) / (10 ** 9); // remove the last 9 decimals
+
+    wholePart = vm.toString(wholeNum);
+    decimalPart = vm.toString(decimalNum);
+
+    // show 9 decimals
+    while(bytes(decimalPart).length < 9) {
+      decimalPart = string.concat("0", decimalPart);
+    }
+
+    string memory usdCentsPart = "";
+    uint256 amountInUSD = uint256(convert(convert(int256(value)).div(wethUsdValueOverTime.get(block.timestamp))));
+    uint256 usdWhole = amountInUSD / (10 ** 18);
+    uint256 usdCents = amountInUSD % (10 ** 18);
+    uint256 usdCentsWhole = usdCents / (10 ** 16);
+    usdCentsPart = vm.toString(usdCentsWhole);
+
+    // show 2 decimals
+    while(bytes(usdCentsPart).length < 2) {
+      usdCentsPart = string.concat("0", usdCentsPart);
+    }
+
+    return string.concat(wholePart, ".", decimalPart, " (~$", vm.toString(usdWhole), ".", usdCentsPart, ")");
   }
 }

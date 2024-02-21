@@ -8,6 +8,7 @@ import { UD2x18 } from "prb-math/UD2x18.sol";
 abstract contract Config {
   // Contracts configs
   struct PrizePoolConfig {
+    uint256 tierLiquidityUtilizationRate;
     uint24 grandPrizePeriodDraws;
     uint32 drawPeriodSeconds;
     uint48 firstDrawOpensAt;
@@ -18,8 +19,6 @@ abstract contract Config {
   }
 
   struct CgdaLiquidatorConfig {
-    SD59x18 decayConstant;
-    SD59x18 exchangeRatePrizeTokenToUnderlying;
     uint32 periodLength;
     uint32 periodOffset;
     uint32 targetFirstSaleTime;
@@ -41,12 +40,10 @@ abstract contract Config {
 
   // Gas configs
   struct GasConfig {
-    uint256 gasPriceInPrizeTokens;
-    uint256 gasUsagePerStartDraw;
-    uint256 gasUsagePerRelayDraw;
-    uint256 gasUsagePerClaim;
-    uint256 gasUsagePerLiquidation;
-    uint256 rngCostInPrizeTokens;
+    uint256 startDrawCostInEth;
+    uint256 awardDrawCostInEth;
+    uint256 claimCostInEth;
+    uint256 liquidationCostInEth;
   }
 
 }

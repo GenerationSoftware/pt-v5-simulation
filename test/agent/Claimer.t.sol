@@ -31,12 +31,10 @@ contract ClaimerAgentTest is Config, Test {
     vm.etch(address(claimer), "claimer");
 
     GasConfig memory gasConfig = GasConfig({
-      gasPriceInPrizeTokens: 0.3 gwei,
-      gasUsagePerStartDraw: 152_473,
-      gasUsagePerRelayDraw: 405_000,
-      gasUsagePerClaim: 150_000,
-      gasUsagePerLiquidation: 500_000,
-      rngCostInPrizeTokens: 0.0005e18
+      startDrawCostInEth: 0.3 gwei * 152_473,
+      awardDrawCostInEth: 0.3 gwei * 405_000,
+      claimCostInEth: 0.3 gwei * 150_000,
+      liquidationCostInEth: 0.3 gwei * 500_000
     });
 
     vm.mockCall(

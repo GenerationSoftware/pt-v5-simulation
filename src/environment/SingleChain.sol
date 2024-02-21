@@ -10,9 +10,10 @@ import { UD2x18 } from "prb-math/UD2x18.sol";
 import { PrizeVault } from "pt-v5-vault/PrizeVault.sol";
 import { PrizeVaultFactory } from "pt-v5-vault/PrizeVaultFactory.sol";
 import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
-
 import { RngBlockhash } from "pt-v5-rng-blockhash/RngBlockhash.sol";
+
 import { DrawManager } from "pt-v5-draw-manager/DrawManager.sol";
+import { FeeBurner } from "pt-v5-prize-pool-fee-burner/FeeBurner.sol";
 
 import { TwabController } from "pt-v5-twab-controller/TwabController.sol";
 import { PrizePool, ConstructorParams } from "pt-v5-prize-pool/PrizePool.sol";
@@ -33,6 +34,7 @@ import { Utils } from "../utils/Utils.sol";
 
 contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
   ERC20PermitMock public prizeToken;
+  ERC20PermitMock public poolToken;
   PrizePool public prizePool;
   RngBlockhash public rng;
 
@@ -47,6 +49,9 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
   ILiquidationPair public pair;
   Claimer public claimer;
   LiquidationRouter public router;
+
+  FeeBurner public feeBurner;
+  ILiquidationPair public feeBurnerPair;
 
   address[] public users;
 
@@ -66,11 +71,14 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
     );
 
     prizeToken = new ERC20PermitMock("WETH");
+    poolToken = new ERC20PermitMock("POOL");
 
     prizePool = new PrizePool(
       ConstructorParams({
         prizeToken: prizeToken,
         twabController: twab,
+        creator: address(this),
+        tierLiquidityUtilizationRate: _prizePoolConfig.tierLiquidityUtilizationRate,
         drawPeriodSeconds: _prizePoolConfig.drawPeriodSeconds,
         firstDrawOpensAt: _prizePoolConfig.firstDrawOpensAt,
         grandPrizePeriodDraws: _prizePoolConfig.grandPrizePeriodDraws,
@@ -81,31 +89,20 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
       })
     );
 
-
-
     rng = new RngBlockhash();
-    rngAuction = new RngAuction(
-      rng,
-      address(this),
-      DRAW_PERIOD_SECONDS,
-      _rngAuctionConfig.sequenceOffset,
-      _rngAuctionConfig.auctionDuration,
-      _rngAuctionConfig.auctionTargetTime,
-      _rngAuctionConfig.firstAuctionTargetRewardFraction
-    );
-
-    rngAuctionRelayerDirect = new RngAuctionRelayerDirect(rngAuction);
-
-    rngRelayAuction = new RngRelayAuction(
+    feeBurner = new FeeBurner(prizePool, address(poolToken), address(this));
+    drawManager = new DrawManager(
       prizePool,
+      rng,
       _rngAuctionConfig.auctionDuration,
       _rngAuctionConfig.auctionTargetTime,
-      address(rngAuctionRelayerDirect),
+      _rngAuctionConfig.firstAuctionTargetRewardFraction,
       _getFirstRngRelayAuctionTargetRewardFraction(),
-      AUCTION_MAX_REWARD
+      AUCTION_MAX_REWARD,
+      address(feeBurner)
     );
 
-    prizePool.setDrawManager(address(rngRelayAuction));
+    prizePool.setDrawManager(address(drawManager));
 
     underlyingToken = new ERC20PermitMock("USDC");
     yieldVault = new YieldVaultMintRate(underlyingToken, "Yearnish yUSDC", "yUSDC", address(this));
@@ -140,30 +137,29 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
   }
 
   function initializeCgdaLiquidator(
+    SD59x18 wethUsdValue, // usd / weth
+    SD59x18 poolUsdValue, // usd / pool
     CgdaLiquidatorConfig memory _liquidatorConfig
   ) external virtual {
     LiquidationPairFactory pairFactory = new LiquidationPairFactory();
+    vm.label(address(pairFactory), "LiquidationPairFactory");
     LiquidationRouter cgdaRouter = new LiquidationRouter(pairFactory);
-
+    vm.label(address(cgdaRouter), "LiquidationRouter");
     // console2.log(
     //   "initializeCgdaLiquidator _liquidatorConfig.exchangeRatePrizeTokenToUnderlying",
     //   _liquidatorConfig.exchangeRatePrizeTokenToUnderlying.unwrap()
     // );
 
-    uint104 _initialAmountIn = 1e18; // 1 WETH
-    uint104 _initialAmountOut = uint104(
-      uint256(
-        convert(
-          convert(int256(uint256(_initialAmountIn))).div(
-            _liquidatorConfig.exchangeRatePrizeTokenToUnderlying
-          )
-        )
-      )
-    );
+    // selling "pool" for weth.
+    // so we want 
 
-    // console2.log("initializeCgdaLiquidator _initialAmountIn", _initialAmountIn);
-    // console2.log("initializeCgdaLiquidator _initialAmountOut", _initialAmountOut);
-
+    uint104 poolAmount = 1e18; // 1 WETH
+    // convert pool => weth
+    // 1 pool = ? weth
+    // 1 pool * usd/pool = usd
+    // usd / usd/weth = weth
+    uint104 wethAmount = uint104(uint(convert(poolUsdValue.mul(convert(int(uint(poolAmount)))).div(wethUsdValue))));
+    
     pair = ILiquidationPair(
       address(
         pairFactory.createPair(
@@ -173,16 +169,37 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
           _liquidatorConfig.periodLength,
           _liquidatorConfig.periodOffset,
           _liquidatorConfig.targetFirstSaleTime,
-          _liquidatorConfig.decayConstant,
-          _initialAmountIn,
-          _initialAmountOut,
-          1e18
+          _getDecayConstant(_liquidatorConfig.periodLength),
+          wethAmount, // weth is token in
+          poolAmount, // pool is token out
+          1e18 // min is 1 pool being sold
         )
       )
     );
+    vm.label(address(pair), "VaultLiquidationPair");
 
     router = LiquidationRouter(address(cgdaRouter));
     vault.setLiquidationPair(address(pair));
+
+    feeBurnerPair = ILiquidationPair(
+      address(
+        pairFactory.createPair(
+          ILiquidationSource(address(feeBurner)),
+          address(poolToken),
+          address(prizeToken),
+          _liquidatorConfig.periodLength,
+          _liquidatorConfig.periodOffset,
+          _liquidatorConfig.targetFirstSaleTime,
+          _getDecayConstant(_liquidatorConfig.periodLength),
+          poolAmount, // pool is token in (burn)
+          wethAmount, // weth is token out
+          wethAmount // 1 pool worth of weth being sold
+        )
+      )
+    );
+    vm.label(address(feeBurnerPair), "FeeBurnerLiquidationPair");
+
+    feeBurner.setLiquidationPair(address(feeBurnerPair));
   }
 
   function addUsers(uint256 count, uint256 depositSize) external {

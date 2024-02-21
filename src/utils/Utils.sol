@@ -4,8 +4,6 @@ pragma solidity 0.8.19;
 import { CommonBase } from "forge-std/Base.sol";
 import { SD59x18, wrap, convert } from "prb-math/SD59x18.sol";
 
-import { SD59x18OverTime } from "./SD59x18OverTime.sol";
-
 contract Utils is CommonBase {
   // APR
   struct HistoricPrice {
@@ -30,13 +28,11 @@ contract Utils is CommonBase {
     uint256 feesForBatch;
   }
 
-  SD59x18OverTime public exchangeRateOverTime; // Prize Token to Underlying Token
-
   constructor() {}
 
   // APR
   // function setUpExchangeRateFromJson(uint256 _startTime) public {
-  //   exchangeRateOverTime = new SD59x18OverTime();
+  //   wethUsdValueOverTime = new SD59x18OverTime();
 
   //   string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicPrices.json");
   //   string memory jsonData = vm.readFile(jsonFile);
@@ -49,16 +45,15 @@ contract Utils is CommonBase {
   //     HistoricPrice memory priceData = prices[i];
   //     uint256 timeElapsed = priceData.timestamp - initialTimestamp;
 
-  //     exchangeRateOverTime.add(
+  //     wethUsdValueOverTime.add(
   //       _startTime + timeElapsed,
   //       SD59x18.wrap(int256(priceData.exchangeRate * 1e9))
   //     );
   //   }
   // }
 
-  function setUpExchangeRate(uint256 _startTime) public {
-    exchangeRateOverTime = new SD59x18OverTime();
-    exchangeRateOverTime.add(_startTime, wrap(0.00038e18)); // WETH / USD
+  function computeGasCostInUsd(SD59x18 ethValueUsd, uint256 gasCostInEth) public view returns (SD59x18) {
+    return ethValueUsd.mul(convert(int(gasCostInEth)));
   }
 
   // Logging
@@ -107,33 +102,4 @@ contract Utils is CommonBase {
     }
   }
 
-  function formatPrizeTokens(uint256 value) public view returns(string memory) {
-    string memory wholePart = "";
-    string memory decimalPart = "";
-
-    uint256 wholeNum = value / (10 ** 18);
-    uint256 decimalNum = value % (10 ** 18) / (10 ** 9); // remove the last 9 decimals
-
-    wholePart = vm.toString(wholeNum);
-    decimalPart = vm.toString(decimalNum);
-
-    // show 9 decimals
-    while(bytes(decimalPart).length < 9) {
-      decimalPart = string.concat("0", decimalPart);
-    }
-
-    string memory usdCentsPart = "";
-    uint256 amountInUSD = uint256(convert(convert(int256(value)).div(exchangeRateOverTime.get(block.timestamp))));
-    uint256 usdWhole = amountInUSD / (10 ** 18);
-    uint256 usdCents = amountInUSD % (10 ** 18);
-    uint256 usdCentsWhole = usdCents / (10 ** 16);
-    usdCentsPart = vm.toString(usdCentsWhole);
-
-    // show 2 decimals
-    while(bytes(usdCentsPart).length < 2) {
-      usdCentsPart = string.concat("0", usdCentsPart);
-    }
-
-    return string.concat(wholePart, ".", decimalPart, " (~$", vm.toString(usdWhole), ".", usdCentsPart, ")");
-  }
 }

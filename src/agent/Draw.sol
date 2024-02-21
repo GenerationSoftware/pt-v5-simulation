@@ -6,20 +6,10 @@ import "forge-std/console2.sol";
 import { StdCheats } from "forge-std/StdCheats.sol";
 
 import {
-  IMessageDispatcherOptimism
-} from "erc5164-interfaces/interfaces/extensions/IMessageDispatcherOptimism.sol";
-import { AuctionResult } from "pt-v5-draw-auction/interfaces/IAuction.sol";
-import {
-  IRngAuctionRelayListener
-} from "pt-v5-draw-auction/interfaces/IRngAuctionRelayListener.sol";
-import { RemoteOwner } from "remote-owner/RemoteOwner.sol";
-
-import {
+  RngBlockhash,
+  DrawManager,
   SingleChainEnvironment,
-  PrizePool,
-  RngAuction,
-  RngAuctionRelayerDirect,
-  RngRelayAuction
+  PrizePool
 } from "../environment/SingleChain.sol";
 
 import { Config } from "../utils/Config.sol";
@@ -33,14 +23,6 @@ contract DrawAgent is Config, Constant, StdCheats, Utils {
 
   SingleChainEnvironment public env;
 
-  IMessageDispatcherOptimism messageDispatcherOptimism =
-    IMessageDispatcherOptimism(makeAddr("messageDispatcherOptimism"));
-
-  IRngAuctionRelayListener remoteRngAuctionRelayListener =
-    IRngAuctionRelayListener(makeAddr("remoteRngAuctionRelayListener"));
-
-  RemoteOwner remoteOwner = RemoteOwner(payable(makeAddr("remoteOwner")));
-
   uint256 public drawCount;
   uint256 public constant SEED = 0x23423;
 
@@ -50,91 +32,58 @@ contract DrawAgent is Config, Constant, StdCheats, Utils {
     initOutputFileCsv(relayCostCsvFile, relayCostCsvColumns);
   }
 
-  function check(uint256 _previousSequenceId) public returns (uint256) {
-    // awarding cost = start draw cost in prize tokens + RNG cost in prize tokens
-    uint256 awardingCost = (env.gasConfig().gasUsagePerStartDraw * env.gasConfig().gasPriceInPrizeTokens) +
-      env.gasConfig().rngCostInPrizeTokens;
-    uint256 minimumAwardingProfit = getMinimumProfit(awardingCost);
-    uint256 awardingProfit;
-
-    uint256 relayCost = env.gasConfig().gasUsagePerRelayDraw * env.gasConfig().gasPriceInPrizeTokens;
-    uint256 minimumRelayProfit = getMinimumProfit(relayCost);
-    uint256 relayProfit;
-
+  function check() public returns (uint256) {
+    DrawManager drawManager = env.drawManager();
+    RngBlockhash rng = env.rng();
     PrizePool prizePool = env.prizePool();
-    RngAuction rngAuction = env.rngAuction();
-    RngAuctionRelayerDirect rngAuctionRelayerDirect = env.rngAuctionRelayerDirect();
-    RngRelayAuction rngRelayAuction = env.rngRelayAuction();
 
-    uint32 lastSequenceId = rngAuction.lastSequenceId();
+    uint256 startDrawCost = env.gasConfig().startDrawCostInEth;
+    uint256 minimumStartDrawProfit = getMinimumProfit(startDrawCost);
+    uint256 startDrawProfit;
 
-    if (rngAuction.isAuctionOpen() && rngAuction.openSequenceId() != _previousSequenceId) {
-      AuctionResult[] memory auctionResults = new AuctionResult[](1);
-      auctionResults[0] = AuctionResult({
-        rewardFraction: rngAuction.currentFractionalReward(),
-        recipient: address(this)
-      });
+    // console2.log("Draw startDrawCost %e", startDrawCost);
+    // console2.log("Draw minimumStartDrawProfit %e", minimumStartDrawProfit);
 
-      uint256[] memory rewards = rngRelayAuction.computeRewards(auctionResults);
-      awardingProfit = rewards[0] > awardingCost ? rewards[0] - awardingCost : 0;
-
-      if (awardingProfit >= minimumAwardingProfit) {
-        rngAuction.startRngRequest(address(this));
-
-        uint256[] memory logs = new uint256[](6);
-        logs[0] = prizePool.getLastAwardedDrawId() + 1;
-        logs[1] = block.timestamp;
-        logs[2] = awardingCost;
-        logs[3] = awardingProfit;
-        logs[4] = relayCost;
-        logs[5] = relayProfit;
-
-        logUint256ToCsv(relayCostCsvFile, logs);
+    if (drawManager.canStartDraw()) {
+      uint fee = drawManager.startDrawFee();
+      // console2.log("Draw startDrawFee %e", fee);
+      startDrawProfit = fee < startDrawCost ? 0 : fee - startDrawCost;
+      if (startDrawProfit >= minimumStartDrawProfit) {
+        (uint32 requestId,) = rng.requestRandomNumber();
+        drawManager.startDraw(address(this), requestId);
+        // console2.log("Draw STARTED", prizePool.getDrawIdToAward());
       }
+    } else {
+      // console2.log("Draw cannot start draw");
     }
 
-    uint64 completedAt;
-    bool isAuctionOpen;
+    uint256 awardDrawCost = env.gasConfig().awardDrawCostInEth;
+    uint256 minimumAwardDrawProfit = getMinimumProfit(awardDrawCost);
+    uint256 awardDrawProfit;
 
-    if (
-      lastSequenceId > 0 && // if there is a last sequence id
-      rngAuction.isRngComplete() // and it's ready
-    ) {
-      (, /* uint256 randomNumber */ completedAt) = rngAuction.getRngResults();
-      isAuctionOpen = rngRelayAuction.isAuctionOpen(lastSequenceId, completedAt); // and the last sequence has not completed yet
-    }
-
-    if (isAuctionOpen) {
-      // Compute reward
-      AuctionResult[] memory auctionResults = new AuctionResult[](2);
-      auctionResults[0] = rngAuction.getLastAuctionResult();
-      auctionResults[1] = AuctionResult({
-        rewardFraction: rngRelayAuction.computeRewardFraction(
-          uint64(block.timestamp - completedAt)
-        ),
-        recipient: address(this)
-      });
-
-      uint256[] memory rewards = rngRelayAuction.computeRewards(auctionResults);
-      relayProfit = rewards[1] > relayCost ? rewards[1] - relayCost : 0;
-
-      if (relayProfit >= minimumRelayProfit) {
+    if (drawManager.canAwardDraw()) {
+      // console2.log("Draw CAN AWARD");
+      uint fee = drawManager.awardDrawFee();
+      // console2.log("Draw awardDraw fee %e", fee);
+      awardDrawProfit = fee < awardDrawCost ? 0 : fee - awardDrawCost;
+      if (awardDrawProfit >= minimumAwardDrawProfit) {
+        drawManager.awardDraw(address(this));
         drawCount++;
-        rngAuctionRelayerDirect.relay(rngRelayAuction, address(this));
+        // console2.log("Draw AWARDED", prizePool.getLastAwardedDrawId());
 
         uint256[] memory logs = new uint256[](6);
         logs[0] = prizePool.getLastAwardedDrawId();
         logs[1] = block.timestamp;
-        logs[2] = awardingCost;
-        logs[3] = awardingProfit;
-        logs[4] = relayCost;
-        logs[5] = relayProfit;
+        logs[2] = startDrawCost;
+        logs[3] = startDrawProfit;
+        logs[4] = awardDrawCost;
+        logs[5] = awardDrawProfit;
 
         logUint256ToCsv(relayCostCsvFile, logs);
       }
     }
 
-    return rngAuction.lastSequenceId();
+    return prizePool.getLastAwardedDrawId();
   }
 
   function getMinimumProfit(uint256 _cost) public pure returns (uint256) {

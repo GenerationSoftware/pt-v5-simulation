@@ -25,7 +25,6 @@ abstract contract Constant is Config {
   uint8 internal constant RESERVE_SHARES = 100;
   uint8 internal constant TIER_SHARES = 100;
 
-
   // RngAuctions
   uint64 internal constant AUCTION_DURATION = 6 hours;
   uint64 internal constant AUCTION_TARGET_TIME = 1 hours;
@@ -33,14 +32,15 @@ abstract contract Constant is Config {
   UD2x18 internal constant FIRST_AUCTION_TARGET_REWARD_FRACTION = UD2x18.wrap(0.25e18); // 25%
 
   // CGDA Liquidator
+  uint64 internal constant LIQUIDATION_PAIR_SEARCH_DENSITY = 1;
 
   /**
    * @notice Get Liquidation Pair decay constant.
    * @dev This is approximately the maximum decay constant, as the CGDA formula requires computing e^(decayConstant * time).
    *      Since the data type is SD59x18 and e^134 ~= 1e58, we can divide 134 by the draw period to get the max decay constant.
    */
-  function _getDecayConstant() internal pure returns (SD59x18) {
-    return SD59x18.wrap(134e18).div(convert(int256(uint256(DRAW_PERIOD_SECONDS * 50))));
+  function _getDecayConstant(uint32 auctionDuration) internal pure returns (SD59x18) {
+    return SD59x18.wrap(134e18).div(convert(int256(uint256(auctionDuration * 50))));
   }
 
   function _getTargetFirstSaleTime() internal pure returns (uint32) {

@@ -26,52 +26,43 @@ contract LiquidatorAgent is Config, Constant, Utils {
 
   PrizePool public prizePool;
   ERC20PermitMock public prizeToken;
-  ILiquidationPair public pair;
   LiquidationRouter public router;
 
-  uint256 totalApproxProfit;
   string liquidatorCsv;
+
+  uint public burnedPool;
 
   constructor(SingleChainEnvironment _env) {
     env = _env;
 
     prizePool = env.prizePool();
     prizeToken = env.prizeToken();
-    pair = env.pair();
     router = env.router();
 
     initOutputFileCsv(liquidatorCsvFile, liquidatorCsvColumns);
     prizeToken.approve(address(router), type(uint256).max);
   }
 
-  function check(SD59x18 exchangeRatePrizeTokenToUnderlying) public {
-    uint256 gasCostInPrizeTokens = env.gasConfig().gasPriceInPrizeTokens *
-      env.gasConfig().gasUsagePerLiquidation;
-    uint256 maxAmountOut = env.pair().maxAmountOut();
+  function check(SD59x18 wethUsdValue, SD59x18 poolUsdValue) public {
+    checkLiquidationPair(wethUsdValue, poolUsdValue, wethUsdValue, env.pair());
+    checkLiquidationPair(poolUsdValue, wethUsdValue, wethUsdValue, env.feeBurnerPair());
+  }
 
-    // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ checking maxAmountOut", maxAmountOut / 1e18);
-    // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ period", env.pair().getAuction().period);
-    // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ elapsed", env.pair().getElapsedTime());
+  function checkLiquidationPair(SD59x18 tokenInValueUsd, SD59x18 tokenOutValueUsd, SD59x18 ethValueUsd, ILiquidationPair pair) public {
+    uint256 maxAmountOut = pair.maxAmountOut();
 
-    uint256 amountOut = maxAmountOut;
-    uint256 amountIn = amountOut > 0 ? env.pair().computeExactAmountIn(amountOut) : 0;
-    // console2.log("amountOut %s amountIn %s", amountOut, amountIn);
-    uint256 profit;
+    (uint256 amountOut, uint256 amountIn, SD59x18 profit) = _findBestProfit(tokenInValueUsd, tokenOutValueUsd, ethValueUsd, pair);
 
-    uint256 amountOutInPrizeTokens = uint256(
-      convert(convert(int256(amountOut)).mul(exchangeRatePrizeTokenToUnderlying))
-    );
+    // if (isFeeBurner(pair) && maxAmountOut > 0) {
+    //   console2.log("Available to burn: %e", maxAmountOut);
+    // }
+    // console2.log("checkLiquidationPair amountOutInUsd %e", amountOutInUsd.unwrap());
+    // console2.log("checkLiquidationPair amountInInUsd %e", amountInInUsd.unwrap());
 
-    if (amountOutInPrizeTokens > amountIn) {
-      profit = amountOutInPrizeTokens - amountIn;
-    }
-    // console2.log("liquidator profit", profit);
-    // console2.log("liquidator gasCostInPrizeTokens", gasCostInPrizeTokens);
-    if (profit > gasCostInPrizeTokens) {
-      prizeToken.mint(address(this), amountIn);
-
-      // console2.log("Swapping for amountOut: %s", amountOut);
-
+    if (profit.gt(wrap(0))) {
+      ERC20PermitMock tokenIn = ERC20PermitMock(pair.tokenIn());
+      tokenIn.mint(address(this), amountIn);
+      tokenIn.approve(address(router), amountIn);
       router.swapExactAmountOut(
         LiquidationPair(address(pair)),
         address(this),
@@ -80,13 +71,15 @@ contract LiquidatorAgent is Config, Constant, Utils {
         block.timestamp + 10
       );
 
-      totalApproxProfit += profit;
+      if (isFeeBurner(pair)) {
+        burnedPool += amountIn;
+      }
 
       uint256 elapsedSinceDrawEnded = block.timestamp -
         prizePool.drawClosesAt(prizePool.getLastAwardedDrawId());
 
-      SD59x18 efficiency = convert(int256(amountIn)).div(convert(int256(amountOutInPrizeTokens)));
-      uint256 efficiencyPercent = uint256(convert(efficiency.mul(convert(100))));
+      // SD59x18 efficiency = convert(int256(amountIn)).div(convert(int256(amountOutInPrizeTokens)));
+      // uint256 efficiencyPercent = uint256(convert(efficiency.mul(convert(100))));
 
       uint256[] memory logs = new uint256[](12);
       logs[0] = prizePool.getLastAwardedDrawId();
@@ -97,45 +90,51 @@ contract LiquidatorAgent is Config, Constant, Utils {
       logs[5] = amountIn;
       logs[6] = amountOut;
       logs[7] = amountIn / amountOut;
-      logs[8] = uint256(SD59x18.unwrap(exchangeRatePrizeTokenToUnderlying));
-      logs[9] = profit;
-      logs[10] = efficiencyPercent;
+      logs[8] = 0;
+      logs[9] = 0; //convert(profit);
+      logs[10] = 0;
       logs[11] = pair.maxAmountOut();
 
       logUint256ToCsv(liquidatorCsvFile, logs);
+    }    
+  }
 
-      // // NOTE: Percentage calc is hardcoded to 1 day.
-      // console2.log(
-      //   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ @ %s (%s%)",
-      //   elapsedSinceDrawEnded,
-      //   (elapsedSinceDrawEnded * 100) / 1 days
-      // );
-      // console2.log(
-      //   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ LiquidatorAgent swapped POOL for Yield"
-      // );
-      // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tEfficiency\t", efficiencyPercent);
-      // console2.log(
-      //   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tTarget ER\t",
-      //   SD59x18.unwrap(LiquidationPair(address(env.pair())).targetExchangeRate())
-      // );
-      // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tAvailability\t", maxAmountOut);
-      // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tIn\t\t", amountIn);
-      // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tOut\t\t", amountOut);
-      // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tProfit\t\t", profit);
-      // console2.log(
-      //   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tRemaining yield\t",
-      //   env.pair().maxAmountOut()
-      // );
-      // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tGas cost", gasCostInPrizeTokens / 1e18);
-      // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Period, time", auction.period, block.timestamp);
-      // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ exchangeRatePrizeTokenToUnderlying", exchangeRatePrizeTokenToUnderlying);
-      // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ price average", env.pair().priceAverage().unwrap() / 1e18);
-      // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Accrued / claimed", uint(auction.amountAccrued) / 1e18, uint(auction.amountClaimed) / 1e18);
-      // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tcurrent time", block.timestamp);
-      // console2.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \tauction time", env.pair().getPeriodStart());
-      // console2.log("New reserve: ", env.pair().virtualReserveIn()/1e18, env.pair().virtualReserveOut()/1e18);
-      // uint availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));
-      // console2.log("Available yield", availableYield, "/1e18:", availableYield / 1e18);
+  function _findBestProfit(
+    SD59x18 tokenInValueUsd,
+    SD59x18 tokenOutValueUsd,
+    SD59x18 ethValueUsd,
+    ILiquidationPair pair
+  ) internal returns (uint256 actualAmountOut, uint256 actualAmountIn, SD59x18 profit) {
+    uint256 maxAmountOut = pair.maxAmountOut();
+
+    for (uint i = 1; i <= LIQUIDATION_PAIR_SEARCH_DENSITY; i++) {
+      uint256 amountOut = (maxAmountOut/LIQUIDATION_PAIR_SEARCH_DENSITY) * i;
+      if (amountOut == 0) {
+        continue;
+      }
+      uint256 amountIn = pair.computeExactAmountIn(amountOut);
+      SD59x18 swapProfit = computeProfit(tokenInValueUsd, tokenOutValueUsd, ethValueUsd, amountIn, amountOut);
+      if (swapProfit.gt(profit)) {
+        profit = swapProfit;
+        actualAmountOut = amountOut;
+        actualAmountIn = amountIn;
+      }
     }
+  }
+
+  function computeProfit(
+    SD59x18 tokenInValueUsd,
+    SD59x18 tokenOutValueUsd,
+    SD59x18 ethValueUsd,
+    uint256 amountIn,
+    uint256 amountOut
+  ) public view returns (SD59x18) {
+    SD59x18 amountOutInUsd = tokenOutValueUsd.mul(convert(int256(amountOut)));
+    SD59x18 cost = tokenInValueUsd.mul(convert(int256(amountIn))).add(computeGasCostInUsd(ethValueUsd, env.gasConfig().liquidationCostInEth));
+    return cost.lt(amountOutInUsd) ? amountOutInUsd.sub(cost) : wrap(0);
+  } 
+
+  function isFeeBurner(ILiquidationPair pair) public view returns (bool) {
+    return address(pair) == address(env.feeBurnerPair());
   }
 }
