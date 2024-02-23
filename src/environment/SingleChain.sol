@@ -84,6 +84,7 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
         grandPrizePeriodDraws: _prizePoolConfig.grandPrizePeriodDraws,
         numberOfTiers: _prizePoolConfig.numberOfTiers,
         tierShares: _prizePoolConfig.tierShares,
+        canaryShares: _prizePoolConfig.canaryShares,
         reserveShares: _prizePoolConfig.reserveShares,
         drawTimeout: _prizePoolConfig.drawTimeout
       })

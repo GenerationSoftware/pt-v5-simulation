@@ -4,7 +4,7 @@ pragma solidity 0.8.19;
 import { SD1x18, sd1x18 } from "prb-math/SD1x18.sol";
 import { UD2x18, ud2x18 } from "prb-math/UD2x18.sol";
 import { SD59x18, convert } from "prb-math/SD59x18.sol";
-
+import { MINIMUM_NUMBER_OF_TIERS } from "pt-v5-prize-pool/abstract/TieredLiquidityDistributor.sol";
 import { Config } from "./Config.sol";
 
 abstract contract Constant is Config {
@@ -21,8 +21,9 @@ abstract contract Constant is Config {
   // Prize Pool
   uint32 internal constant DRAW_PERIOD_SECONDS = 1 days;
   uint24 internal constant GRAND_PRIZE_PERIOD_DRAWS = 365; // Once a year for daily draws
-  uint8 internal constant MIN_NUMBER_OF_TIERS = 3;
+  uint8 internal constant MIN_NUMBER_OF_TIERS = MINIMUM_NUMBER_OF_TIERS;
   uint8 internal constant RESERVE_SHARES = 100;
+  uint8 internal constant CANARY_SHARES = 10;
   uint8 internal constant TIER_SHARES = 100;
 
   // RngAuctions

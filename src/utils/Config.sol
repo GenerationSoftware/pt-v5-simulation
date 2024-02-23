@@ -14,6 +14,7 @@ abstract contract Config {
     uint48 firstDrawOpensAt;
     uint8 numberOfTiers;
     uint8 tierShares;
+    uint8 canaryShares;
     uint8 reserveShares;
     uint24 drawTimeout;
   }

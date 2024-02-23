@@ -92,8 +92,8 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
 
     setUpExchangeRate(startTime);
     // setUpExchangeRateFromJson(startTime);
-    wethUsdValueOverTime.add(startTime, convert(3000).div(convert(1e18))); // $3000 USD / WETH
-    poolUsdValueOverTime.add(startTime, convert(1).div(convert(1e18))); // $1 USD / POOL
+    wethUsdValueOverTime.add(startTime, convert(3000e2).div(convert(1e18))); // $3000 USD / WETH
+    poolUsdValueOverTime.add(startTime, convert(1e2).div(convert(1e18))); // $1 USD / POOL
 
     setUpApr(startTime);
     // setUpAprFromJson(startTime);
@@ -109,6 +109,7 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
       numberOfTiers: MIN_NUMBER_OF_TIERS,
       reserveShares: RESERVE_SHARES,
       tierShares: TIER_SHARES,
+      canaryShares: CANARY_SHARES,
       drawTimeout: 30 // 30 draws = 1 month
     });
 
@@ -232,11 +233,12 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
     uint reserve = env.prizePool().reserve() + env.prizePool().pendingReserveContributions();
     uint totalLiquidity = env.prizePool().getTotalContributedBetween(1, env.prizePool().getOpenDrawId());
     uint finalPrizeLiquidity = env.prizePool().accountedBalance() - reserve;
+    SD59x18 wethUsdValue = wethUsdValueOverTime.get(block.timestamp);
     console2.log("");
-    console2.log("Total liquidity: ", formatPrizeTokens(totalLiquidity));
+    console2.log("Total liquidity: ", formatTokens(totalLiquidity, wethUsdValue));
     console2.log("Total burned: %e POOL", liquidatorAgent.burnedPool());
-    console2.log("Final prize liquidity", formatPrizeTokens(finalPrizeLiquidity));
-    console2.log("Final reserve liquidity", formatPrizeTokens(reserve));
+    console2.log("Final prize liquidity", formatTokens(finalPrizeLiquidity, wethUsdValue));
+    console2.log("Final reserve liquidity", formatTokens(reserve, wethUsdValue));
   }
 
   function printDraws() public view {
@@ -272,7 +274,12 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
       claimerAgent.totalCanaryPrizesClaimed();
     uint256 averageFeePerClaim = totalPrizes > 0 ? claimerAgent.totalFees() / totalPrizes : 0;
     console2.log("");
-    console2.log("Average fee per claim (WETH): ", formatPrizeTokens(averageFeePerClaim));
+    console2.log("Average fee per claim (WETH): ", formatTokens(averageFeePerClaim, wethUsdValueOverTime.get(block.timestamp)));
+    console2.log("");
+    console2.log("Start draw cost (WETH): ", formatTokens(gasConfig.startDrawCostInEth, wethUsdValueOverTime.get(block.timestamp)));
+    console2.log("Award draw cost (WETH): ", formatTokens(gasConfig.awardDrawCostInEth, wethUsdValueOverTime.get(block.timestamp)));
+    console2.log("Claim cost (WETH): ", formatTokens(gasConfig.claimCostInEth, wethUsdValueOverTime.get(block.timestamp)));
+    console2.log("Liquidation cost (WETH): ", formatTokens(gasConfig.liquidationCostInEth, wethUsdValueOverTime.get(block.timestamp)));
   }
 
   function printPrizeSummary() public view {
@@ -311,7 +318,7 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
         "Final prize size for tier",
         tier,
         "is",
-        formatPrizeTokens(prizePool.getTierPrizeSize(tier))
+        formatTokens(prizePool.getTierPrizeSize(tier), wethUsdValueOverTime.get(block.timestamp))
       );
     }
   }
@@ -379,13 +386,12 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
     }
   }
 
-
-  function formatPrizeTokens(uint256 value) public view returns(string memory) {
+  function formatTokens(uint256 value, SD59x18 exchangeRate) public view returns(string memory) {
     string memory wholePart = "";
     string memory decimalPart = "";
 
-    uint256 wholeNum = value / (10 ** 18);
-    uint256 decimalNum = value % (10 ** 18) / (10 ** 9); // remove the last 9 decimals
+    uint256 wholeNum = value / 1e18;
+    uint256 decimalNum = value % 1e18 / 1e9; // remove the last 9 decimals
 
     wholePart = vm.toString(wholeNum);
     decimalPart = vm.toString(decimalNum);
@@ -396,10 +402,9 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
     }
 
     string memory usdCentsPart = "";
-    uint256 amountInUSD = uint256(convert(convert(int256(value)).div(wethUsdValueOverTime.get(block.timestamp))));
-    uint256 usdWhole = amountInUSD / (10 ** 18);
-    uint256 usdCents = amountInUSD % (10 ** 18);
-    uint256 usdCentsWhole = usdCents / (10 ** 16);
+    uint256 amountInUSD = uint256(convert(convert(int256(value)).mul(exchangeRate)));
+    uint256 usdWhole = amountInUSD / (1e2);
+    uint256 usdCentsWhole = amountInUSD % (1e2);
     usdCentsPart = vm.toString(usdCentsWhole);
 
     // show 2 decimals
@@ -407,6 +412,6 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
       usdCentsPart = string.concat("0", usdCentsPart);
     }
 
-    return string.concat(wholePart, ".", decimalPart, " (~$", vm.toString(usdWhole), ".", usdCentsPart, ")");
+    return string.concat(wholePart, ".", decimalPart, " ($", vm.toString(usdWhole), ".", usdCentsPart, ")");
   }
 }

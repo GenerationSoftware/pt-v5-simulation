@@ -166,11 +166,11 @@ contract ClaimerAgent is Config, Utils {
           })
         );
 
-        if (tier != (prizePool.numberOfTiers() - 1)) {
+        if (prizePool.isCanaryTier(tier)) {
+          totalCanaryPrizesClaimed += targetClaimCount;
+        } else {
           totalNormalPrizesClaimed += targetClaimCount;
           drawNormalTierClaimedPrizeCounts[computedDrawId][tier] += targetClaimCount;
-        } else {
-          totalCanaryPrizesClaimed += targetClaimCount;
         }
 
         nextPrizeIndex += targetClaimCount;
@@ -298,11 +298,11 @@ contract ClaimerAgent is Config, Utils {
           if (prizePool.isWinner(address(vault), user, t, p)) {
             drawPrizes[drawId].push(Prize(t, user, p));
 
-            if (t != numTiers - 1) {
+            if (prizePool.isCanaryTier(t)) {
+              totalCanaryPrizesComputed++;
+            } else {
               totalNormalPrizesComputed++;
               drawNormalTierComputedPrizeCounts[drawId][t]++;
-            } else {
-              totalCanaryPrizesComputed++;
             }
           }
         }
