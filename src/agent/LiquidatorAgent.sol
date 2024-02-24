@@ -11,13 +11,12 @@ import { LiquidationPair } from "pt-v5-cgda-liquidator/LiquidationPair.sol";
 import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
 import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
 
-import { SingleChainEnvironment } from "../environment/SingleChain.sol";
+import { SingleChainEnvironment } from "../environment/SingleChainEnvironment.sol";
 
 import { Config } from "../utils/Config.sol";
-import { Constant } from "../utils/Constant.sol";
 import { Utils } from "../utils/Utils.sol";
 
-contract LiquidatorAgent is Config, Constant, Utils {
+contract LiquidatorAgent is Utils {
   string liquidatorCsvFile = string.concat(vm.projectRoot(), "/data/liquidatorOut.csv");
   string liquidatorCsvColumns =
     "Draw ID, Timestamp, Elapsed Time, Elapsed Percent, Availability, Amount In, Amount Out, Exchange Rate, Market Exchange Rate, Profit, Efficiency, Remaining Yield";
@@ -56,8 +55,8 @@ contract LiquidatorAgent is Config, Constant, Utils {
     // if (isFeeBurner(pair) && maxAmountOut > 0) {
     //   console2.log("Available to burn: %e", maxAmountOut);
     // }
-    // console2.log("checkLiquidationPair amountOutInUsd %e", amountOutInUsd.unwrap());
-    // console2.log("checkLiquidationPair amountInInUsd %e", amountInInUsd.unwrap());
+    // console2.log("checkLiquidationPair amountOut %e", amountOut);
+    // console2.log("checkLiquidationPair amountIn %e", amountIn);
 
     if (profit.gt(wrap(0))) {
       ERC20PermitMock tokenIn = ERC20PermitMock(pair.tokenIn());
@@ -107,8 +106,10 @@ contract LiquidatorAgent is Config, Constant, Utils {
   ) internal returns (uint256 actualAmountOut, uint256 actualAmountIn, SD59x18 profit) {
     uint256 maxAmountOut = pair.maxAmountOut();
 
-    for (uint i = 1; i <= LIQUIDATION_PAIR_SEARCH_DENSITY; i++) {
-      uint256 amountOut = (maxAmountOut/LIQUIDATION_PAIR_SEARCH_DENSITY) * i;
+    uint256 liquidationSearchDensity = env.config().liquidator().liquidationPairSearchDensity;
+
+    for (uint i = 1; i <= liquidationSearchDensity; i++) {
+      uint256 amountOut = (maxAmountOut/liquidationSearchDensity) * i;
       if (amountOut == 0) {
         continue;
       }
@@ -130,7 +131,7 @@ contract LiquidatorAgent is Config, Constant, Utils {
     uint256 amountOut
   ) public view returns (SD59x18) {
     SD59x18 amountOutInUsd = tokenOutValueUsd.mul(convert(int256(amountOut)));
-    SD59x18 cost = tokenInValueUsd.mul(convert(int256(amountIn))).add(computeGasCostInUsd(ethValueUsd, env.gasConfig().liquidationCostInEth));
+    SD59x18 cost = tokenInValueUsd.mul(convert(int256(amountIn))).add(computeGasCostInUsd(ethValueUsd, env.config().gas().liquidationCostInEth));
     return cost.lt(amountOutInUsd) ? amountOutInUsd.sub(cost) : wrap(0);
   } 
 

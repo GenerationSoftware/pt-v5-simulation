@@ -28,20 +28,27 @@ import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
 
 import { YieldVaultMintRate } from "../YieldVaultMintRate.sol";
 
-import { Config } from "../utils/Config.sol";
-import { Constant } from "../utils/Constant.sol";
 import { Utils } from "../utils/Utils.sol";
+import {
+  Config,
+  SimulationConfig,
+  PrizePoolConfig,
+  LiquidatorConfig,
+  ClaimerConfig,
+  DrawManagerConfig,
+  GasConfig
+} from "../utils/Config.sol";
 
-contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
+contract SingleChainEnvironment is Utils, StdCheats {
+
+  Config public config;
+
   ERC20PermitMock public prizeToken;
   ERC20PermitMock public poolToken;
   PrizePool public prizePool;
   RngBlockhash public rng;
-
   DrawManager public drawManager;
-  
   TwabController public twab;
-
   ERC20PermitMock public underlyingToken;
   PrizeVaultFactory public vaultFactory;
   PrizeVault public vault;
@@ -49,26 +56,27 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
   ILiquidationPair public pair;
   Claimer public claimer;
   LiquidationRouter public router;
-
   FeeBurner public feeBurner;
   ILiquidationPair public feeBurnerPair;
 
   address[] public users;
 
-  GasConfig internal _gasConfig;
+  constructor(Config _config) {
+    config = _config;
 
-  constructor(
-    PrizePoolConfig memory _prizePoolConfig,
-    ClaimerConfig memory _claimerConfig,
-    RngAuctionConfig memory _rngAuctionConfig,
-    GasConfig memory gasConfig_
-  ) {
-    _gasConfig = gasConfig_;
+    SimulationConfig memory simulationConfig = config.simulation();
+    PrizePoolConfig memory prizePoolConfig = config.prizePool();
+    LiquidatorConfig memory liquidatorConfig = config.liquidator();
+    ClaimerConfig memory claimerConfig = config.claimer();
+    DrawManagerConfig memory drawManagerConfig = config.drawManager();
+    GasConfig memory gasConfig = config.gas();
+
 
     twab = new TwabController(
-      _prizePoolConfig.drawPeriodSeconds,
-      _getTwabControllerOffset(_prizePoolConfig)
+      prizePoolConfig.drawPeriodSeconds,
+      config.getTwabControllerOffset()
     );
+
 
     prizeToken = new ERC20PermitMock("WETH");
     poolToken = new ERC20PermitMock("POOL");
@@ -78,30 +86,36 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
         prizeToken: prizeToken,
         twabController: twab,
         creator: address(this),
-        tierLiquidityUtilizationRate: _prizePoolConfig.tierLiquidityUtilizationRate,
-        drawPeriodSeconds: _prizePoolConfig.drawPeriodSeconds,
-        firstDrawOpensAt: _prizePoolConfig.firstDrawOpensAt,
-        grandPrizePeriodDraws: _prizePoolConfig.grandPrizePeriodDraws,
-        numberOfTiers: _prizePoolConfig.numberOfTiers,
-        tierShares: _prizePoolConfig.tierShares,
-        canaryShares: _prizePoolConfig.canaryShares,
-        reserveShares: _prizePoolConfig.reserveShares,
-        drawTimeout: _prizePoolConfig.drawTimeout
+        tierLiquidityUtilizationRate: prizePoolConfig.tierLiquidityUtilizationRate,
+        drawPeriodSeconds: prizePoolConfig.drawPeriodSeconds,
+        firstDrawOpensAt: prizePoolConfig.firstDrawOpensAt,
+        grandPrizePeriodDraws: prizePoolConfig.grandPrizePeriodDraws,
+        numberOfTiers: prizePoolConfig.numberOfTiers,
+        tierShares: prizePoolConfig.tierShares,
+        canaryShares: prizePoolConfig.canaryShares,
+        reserveShares: prizePoolConfig.reserveShares,
+        drawTimeout: prizePoolConfig.drawTimeout
       })
     );
+
+
+
 
     rng = new RngBlockhash();
     feeBurner = new FeeBurner(prizePool, address(poolToken), address(this));
     drawManager = new DrawManager(
       prizePool,
       rng,
-      _rngAuctionConfig.auctionDuration,
-      _rngAuctionConfig.auctionTargetTime,
-      _rngAuctionConfig.firstAuctionTargetRewardFraction,
-      _getFirstRngRelayAuctionTargetRewardFraction(),
-      AUCTION_MAX_REWARD,
+      drawManagerConfig.auctionDuration,
+      drawManagerConfig.auctionTargetTime,
+      drawManagerConfig.firstAuctionTargetRewardFraction,
+      config.getFirstRngRelayAuctionTargetRewardFraction(),
+      drawManagerConfig.auctionMaxReward,
       address(feeBurner)
     );
+
+
+
 
     prizePool.setDrawManager(address(drawManager));
 
@@ -112,11 +126,14 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
 
     claimer = new Claimer(
       prizePool,
-      _claimerConfig.minimumFee,
-      _claimerConfig.maximumFee,
-      _claimerConfig.timeToReachMaxFee,
-      _claimerConfig.maxFeePortionOfPrize
+      claimerConfig.minimumFee,
+      claimerConfig.maximumFee,
+      claimerConfig.timeToReachMaxFee,
+      claimerConfig.maxFeePortionOfPrize
     );
+
+
+
 
     vault = PrizeVault(
       vaultFactory.deployVault(
@@ -131,17 +148,17 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
         address(this)
       )
     );
+
+
+    initializeCgdaLiquidator(liquidatorConfig);
+    
+    addUsers(config.simulation().numUsers, config.simulation().totalValueLocked / config.simulation().numUsers);
   }
 
-  function gasConfig() public view returns(GasConfig memory) {
-    return _gasConfig;
-  }
+  function initializeCgdaLiquidator(LiquidatorConfig memory _liquidatorConfig) public virtual {
+    SD59x18 wethUsdValue = config.wethUsdValueOverTime().get(block.timestamp);
+    SD59x18 poolUsdValue = config.poolUsdValueOverTime().get(block.timestamp);
 
-  function initializeCgdaLiquidator(
-    SD59x18 wethUsdValue, // usd / weth
-    SD59x18 poolUsdValue, // usd / pool
-    CgdaLiquidatorConfig memory _liquidatorConfig
-  ) external virtual {
     LiquidationPairFactory pairFactory = new LiquidationPairFactory();
     vm.label(address(pairFactory), "LiquidationPairFactory");
     LiquidationRouter cgdaRouter = new LiquidationRouter(pairFactory);
@@ -167,10 +184,10 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
           ILiquidationSource(address(vault)),
           address(prizeToken),
           address(vault),
-          _liquidatorConfig.periodLength,
-          _liquidatorConfig.periodOffset,
-          _liquidatorConfig.targetFirstSaleTime,
-          _getDecayConstant(_liquidatorConfig.periodLength),
+          config.prizePool().drawPeriodSeconds,
+          uint32(config.prizePool().firstDrawOpensAt),
+          config.getTargetFirstSaleTime(),
+          config.getDecayConstant(),
           wethAmount, // weth is token in
           poolAmount, // pool is token out
           1e18 // min is 1 pool being sold
@@ -188,10 +205,10 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
           ILiquidationSource(address(feeBurner)),
           address(poolToken),
           address(prizeToken),
-          _liquidatorConfig.periodLength,
-          _liquidatorConfig.periodOffset,
-          _liquidatorConfig.targetFirstSaleTime,
-          _getDecayConstant(_liquidatorConfig.periodLength),
+          config.prizePool().drawPeriodSeconds,
+          uint32(config.prizePool().firstDrawOpensAt),
+          config.getTargetFirstSaleTime(),
+          config.getDecayConstant(),
           poolAmount, // pool is token in (burn)
           wethAmount, // weth is token out
           wethAmount // 1 pool worth of weth being sold
@@ -203,7 +220,7 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
     feeBurner.setLiquidationPair(address(feeBurnerPair));
   }
 
-  function addUsers(uint256 count, uint256 depositSize) external {
+  function addUsers(uint256 count, uint256 depositSize) public {
     for (uint256 i = 0; i < count; i++) {
       address user = makeAddr(string.concat("user", string(abi.encode(i))));
       vm.startPrank(user);
@@ -215,7 +232,7 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
     }
   }
 
-  function removeUsers() external {
+  function removeUsers() public {
     for (uint256 i = 0; i < users.length; i++) {
       address user = users[i];
       vm.startPrank(user);
@@ -224,16 +241,16 @@ contract SingleChainEnvironment is Config, Constant, Utils, StdCheats {
     }
   }
 
-  function userCount() external view returns (uint256) {
+  function userCount() public view returns (uint256) {
     return users.length;
   }
 
-  function mintYield() external {
+  function mintYield() public {
     yieldVault.mintRate();
   }
 
-  function setApr(uint256 fixedPoint18) external {
-    uint256 ratePerSecond = fixedPoint18 / 365 days;
+  function updateApr() public {
+    uint256 ratePerSecond = config.aprOverTime().get(block.timestamp) / 365 days;
     yieldVault.setRatePerSecond(ratePerSecond);
   }
 }

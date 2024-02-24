@@ -7,14 +7,14 @@ import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.s
 import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
 import { PrizeVault } from "pt-v5-vault/PrizeVault.sol";
 import { SD59x18, convert } from "prb-math/SD59x18.sol";
+import { UD2x18, ud2x18 } from "prb-math/UD2x18.sol";
+import { SafeCast } from "openzeppelin/utils/math/SafeCast.sol";
 
-import { ClaimerAgent } from "../../src/agent/Claimer.sol";
-import { DrawAgent } from "../../src/agent/Draw.sol";
-import { LiquidatorAgent } from "../../src/agent/Liquidator.sol";
+import { ClaimerAgent } from "../../src/agent/ClaimerAgent.sol";
+import { DrawAgent } from "../../src/agent/DrawAgent.sol";
+import { LiquidatorAgent } from "../../src/agent/LiquidatorAgent.sol";
 
-import { SingleChainEnvironment } from "../../src/environment/SingleChain.sol";
-
-import { SD59x18OverTime } from "../../src/utils/SD59x18OverTime.sol";
+import { SingleChainEnvironment } from "../../src/environment/SingleChainEnvironment.sol";
 
 import { CommonBase } from "forge-std/Base.sol";
 import { StdCheats } from "forge-std/StdCheats.sol";
@@ -22,17 +22,10 @@ import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 import { Config } from "../../src/utils/Config.sol";
-import { Constant } from "../../src/utils/Constant.sol";
 import { Utils } from "../../src/utils/Utils.sol";
 
-import { UintOverTime } from "../utils/UintOverTime.sol";
-
-contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, Test, Utils {
-
-  UintOverTime public aprOverTime;
-
-  SD59x18OverTime public wethUsdValueOverTime; // Value of WETH over time (USD / WETH)
-  SD59x18OverTime public poolUsdValueOverTime; // Value of the pool token over time (USD / POOL)
+contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
+  using SafeCast for uint256;
 
   // NOTE: Order matters for ABI decode.
   struct HistoricApr {
@@ -44,154 +37,68 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
   string simulatorCsvColumns =
     "Draw ID, Timestamp, Available Yield, Available Prize Vault Shares, Required Prize Tokens, Prize Pool Reserve, Pending Reserve Contributions, APR, TVL";
 
-  uint256 duration;
   uint256 startTime;
-  uint48 firstDrawOpensAt;
 
-  uint256 totalValueLocked;
-
-  PrizePoolConfig public prizePoolConfig;
-  ClaimerConfig public claimerConfig;
-  RngAuctionConfig public rngAuctionConfig;
   SingleChainEnvironment public env;
-  GasConfig public gasConfig;
-
-  ILiquidationPair public pair;
-  PrizePool public prizePool;
-  PrizeVault public vault;
-
+  Config public config;
   ClaimerAgent public claimerAgent;
   DrawAgent public drawAgent;
   LiquidatorAgent public liquidatorAgent;
 
-  uint256 verbosity;
-
   function setUp() public {
     startTime = block.timestamp + 10000 days;
     vm.warp(startTime);
-
-    firstDrawOpensAt = _getFirstDrawOpensAt(startTime);
-
-    totalValueLocked = vm.envUint("TVL") * 1e18;
-    console2.log("TVL: ", vm.envUint("TVL"));
-
-    if (totalValueLocked == 0) {
-      revert("Please define TVL env var > 0");
-    }
-
-    verbosity = vm.envUint("VERBOSITY");
-    console2.log("VERBOSITY: ", verbosity);
-
-    // We offset by 2 draw periods cause the first draw opens 1 draw period after start time
-    // and one draw period need to pass before we can award it
-    duration = vm.envUint("DRAWS") * DRAW_PERIOD_SECONDS + DRAW_PERIOD_SECONDS * 2;
-    console2.log("DURATION: ", duration);
-    console2.log("DURATION IN DAYS: ", duration / 1 days);
+    config = new Config();
+    config.load(vm.envString("CONFIG"));
 
     initOutputFileCsv(simulatorCsvFile, simulatorCsvColumns);
 
-    setUpExchangeRate(startTime);
-    // setUpExchangeRateFromJson(startTime);
-    wethUsdValueOverTime.add(startTime, convert(3000e2).div(convert(1e18))); // $3000 USD / WETH
-    poolUsdValueOverTime.add(startTime, convert(1e2).div(convert(1e18))); // $1 USD / POOL
-
-    setUpApr(startTime);
-    // setUpAprFromJson(startTime);
-
     console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
-    console2.log("Draw Period (sec): ", DRAW_PERIOD_SECONDS);
 
-    prizePoolConfig = PrizePoolConfig({
-      tierLiquidityUtilizationRate: 1e18,
-      drawPeriodSeconds: DRAW_PERIOD_SECONDS,
-      grandPrizePeriodDraws: GRAND_PRIZE_PERIOD_DRAWS,
-      firstDrawOpensAt: firstDrawOpensAt,
-      numberOfTiers: MIN_NUMBER_OF_TIERS,
-      reserveShares: RESERVE_SHARES,
-      tierShares: TIER_SHARES,
-      canaryShares: CANARY_SHARES,
-      drawTimeout: 30 // 30 draws = 1 month
-    });
+    env = new SingleChainEnvironment(config);
 
-    claimerConfig = ClaimerConfig({
-      minimumFee: CLAIMER_MIN_FEE,
-      maximumFee: CLAIMER_MAX_FEE,
-      timeToReachMaxFee: _getClaimerTimeToReachMaxFee(),
-      maxFeePortionOfPrize: _getClaimerMaxFeePortionOfPrize()
-    });
-
-    rngAuctionConfig = RngAuctionConfig({
-      sequenceOffset: _getRngAuctionSequenceOffset(firstDrawOpensAt),
-      auctionDuration: AUCTION_DURATION,
-      auctionTargetTime: AUCTION_TARGET_TIME,
-      firstAuctionTargetRewardFraction: FIRST_AUCTION_TARGET_REWARD_FRACTION
-    });
-
-    gasConfig = GasConfig({
-      startDrawCostInEth: 0.3 gwei * 152_473,
-      awardDrawCostInEth: 0.3 gwei * 405_000,
-      claimCostInEth: 0.3 gwei * 500_000,
-      liquidationCostInEth: 0.3 gwei * 500_000
-    });
-
-    env = new SingleChainEnvironment(prizePoolConfig, claimerConfig, rngAuctionConfig, gasConfig);
-    env.initializeCgdaLiquidator(
-      wethUsdValueOverTime.get(block.timestamp),
-      poolUsdValueOverTime.get(block.timestamp),
-      CgdaLiquidatorConfig({
-        periodLength: DRAW_PERIOD_SECONDS,
-        periodOffset: uint32(startTime),
-        targetFirstSaleTime: _getTargetFirstSaleTime()
-      })
-    );
-
-    pair = env.pair();
-    prizePool = env.prizePool();
-    vault = env.vault();
-
-    claimerAgent = new ClaimerAgent(env, verbosity);
+    claimerAgent = new ClaimerAgent(env);
     drawAgent = new DrawAgent(env);
     liquidatorAgent = new LiquidatorAgent(env);
   }
 
   function testSingleChain() public noGasMetering recordEvents {
-    env.addUsers(NUM_USERS, totalValueLocked / NUM_USERS);
-    env.setApr(aprOverTime.get(startTime));
-
-    for (uint256 i = startTime; i <= startTime + duration; i += TIME_STEP) {
+    uint256 duration = (config.simulation().durationDraws+2) * config.prizePool().drawPeriodSeconds;
+    uint256 timeStep = config.simulation().timeStep;
+    for (uint256 i = startTime; i <= startTime + duration; i += timeStep) {
       vm.warp(i);
       vm.roll(block.number + 1);
 
       // Cache data at beginning of tick
-      uint256 availableYield = vault.liquidatableBalanceOf(address(vault));
-      // console2.log("availableYield: ", availableYield);
+      uint256 availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));
+      // console2.log("availableYield %e ", availableYield);
       // console2.log("elapsed time: ", i - startTime);
-      uint256 availablePrizeVaultShares = pair.maxAmountOut();
-      uint256 prizePoolReserve = prizePool.reserve();
+      uint256 availablePrizeVaultShares = env.pair().maxAmountOut();
+      uint256 prizePoolReserve = env.prizePool().reserve();
       uint256 requiredPrizeTokens = availablePrizeVaultShares != 0
-        ? pair.computeExactAmountIn(availablePrizeVaultShares)
+        ? env.pair().computeExactAmountIn(availablePrizeVaultShares)
         : 0;
 
-      uint256 pendingReserveContributions = prizePool.pendingReserveContributions();
+      uint256 pendingReserveContributions = env.prizePool().pendingReserveContributions();
 
       // Let agents do their thing
-      env.setApr(aprOverTime.get(i));
+      env.updateApr();
       env.mintYield();
 
-      liquidatorAgent.check(wethUsdValueOverTime.get(block.timestamp), poolUsdValueOverTime.get(block.timestamp));
+      liquidatorAgent.check(config.wethUsdValueOverTime().get(block.timestamp), config.poolUsdValueOverTime().get(block.timestamp));
       drawAgent.check();
       claimerAgent.check();
 
       uint256[] memory logs = new uint256[](9);
-      logs[0] = prizePool.getLastAwardedDrawId();
+      logs[0] = env.prizePool().getLastAwardedDrawId();
       logs[1] = block.timestamp;
       logs[2] = availableYield;
       logs[3] = availablePrizeVaultShares;
       logs[4] = requiredPrizeTokens;
       logs[5] = prizePoolReserve;
       logs[6] = pendingReserveContributions;
-      logs[7] = aprOverTime.get(i);
-      logs[8] = totalValueLocked;
+      logs[7] = config.aprOverTime().get(i);
+      logs[8] = 0;
 
       logUint256ToCsv(simulatorCsvFile, logs);
 
@@ -211,7 +118,7 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
   }
 
   function printMissedPrizes() public view {
-    uint256 lastDrawId = prizePool.getLastAwardedDrawId();
+    uint256 lastDrawId = env.prizePool().getLastAwardedDrawId();
     for (uint32 drawId = 0; drawId <= lastDrawId; drawId++) {
       uint256 numTiers = claimerAgent.drawNumberOfTiers(drawId);
       for (uint8 tier = 0; tier < numTiers; tier++) {
@@ -233,17 +140,18 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
     uint reserve = env.prizePool().reserve() + env.prizePool().pendingReserveContributions();
     uint totalLiquidity = env.prizePool().getTotalContributedBetween(1, env.prizePool().getOpenDrawId());
     uint finalPrizeLiquidity = env.prizePool().accountedBalance() - reserve;
-    SD59x18 wethUsdValue = wethUsdValueOverTime.get(block.timestamp);
+    SD59x18 wethUsdValue = config.wethUsdValueOverTime().get(block.timestamp);
+    SD59x18 poolUsdValue = config.poolUsdValueOverTime().get(block.timestamp);
     console2.log("");
-    console2.log("Total liquidity: ", formatTokens(totalLiquidity, wethUsdValue));
-    console2.log("Total burned: %e POOL", liquidatorAgent.burnedPool());
-    console2.log("Final prize liquidity", formatTokens(finalPrizeLiquidity, wethUsdValue));
-    console2.log("Final reserve liquidity", formatTokens(reserve, wethUsdValue));
+    console2.log("Total liquidity (WETH): ", formatTokens(totalLiquidity, wethUsdValue));
+    console2.log("Total burned (POOL): ", formatTokens(liquidatorAgent.burnedPool(), poolUsdValue));
+    console2.log("Final prize liquidity (WETH)", formatTokens(finalPrizeLiquidity, wethUsdValue));
+    console2.log("Final reserve liquidity (WETH)", formatTokens(reserve, wethUsdValue));
   }
 
   function printDraws() public view {
-    uint256 totalDraws = (block.timestamp - (firstDrawOpensAt + DRAW_PERIOD_SECONDS)) /
-      DRAW_PERIOD_SECONDS;
+    uint delta = block.timestamp - (config.prizePool().firstDrawOpensAt + config.prizePool().drawPeriodSeconds);
+    uint256 totalDraws = delta / env.prizePool().drawPeriodSeconds();
     uint256 missedDraws = (totalDraws) - drawAgent.drawCount();
     console2.log("");
     console2.log("Expected draws", totalDraws);
@@ -274,18 +182,18 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
       claimerAgent.totalCanaryPrizesClaimed();
     uint256 averageFeePerClaim = totalPrizes > 0 ? claimerAgent.totalFees() / totalPrizes : 0;
     console2.log("");
-    console2.log("Average fee per claim (WETH): ", formatTokens(averageFeePerClaim, wethUsdValueOverTime.get(block.timestamp)));
+    console2.log("Average fee per claim (WETH): ", formatTokens(averageFeePerClaim, config.wethUsdValueOverTime().get(block.timestamp)));
     console2.log("");
-    console2.log("Start draw cost (WETH): ", formatTokens(gasConfig.startDrawCostInEth, wethUsdValueOverTime.get(block.timestamp)));
-    console2.log("Award draw cost (WETH): ", formatTokens(gasConfig.awardDrawCostInEth, wethUsdValueOverTime.get(block.timestamp)));
-    console2.log("Claim cost (WETH): ", formatTokens(gasConfig.claimCostInEth, wethUsdValueOverTime.get(block.timestamp)));
-    console2.log("Liquidation cost (WETH): ", formatTokens(gasConfig.liquidationCostInEth, wethUsdValueOverTime.get(block.timestamp)));
+    console2.log("Start draw cost (WETH): ", formatTokens(config.gas().startDrawCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
+    console2.log("Award draw cost (WETH): ", formatTokens(config.gas().awardDrawCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
+    console2.log("Claim cost (WETH): \t  ", formatTokens(config.gas().claimCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
+    console2.log("Liq. cost (WETH): \t  ", formatTokens(config.gas().liquidationCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
   }
 
   function printPrizeSummary() public view {
     console2.log("");
     uint8 maxTiers;
-    uint256 lastDrawId = prizePool.getLastAwardedDrawId();
+    uint256 lastDrawId = env.prizePool().getLastAwardedDrawId();
     for (uint32 drawId = 0; drawId <= lastDrawId; drawId++) {
       uint8 numTiers = claimerAgent.drawNumberOfTiers(drawId);
       if (numTiers > maxTiers) {
@@ -311,44 +219,18 @@ contract SingleChainDeploymentTest is CommonBase, Config, Constant, StdCheats, T
 
   function printFinalPrizes() public view {
     console2.log("");
-    uint8 numTiers = prizePool.numberOfTiers();
+    uint8 numTiers = env.prizePool().numberOfTiers();
+    console2.log("Last awarded draw id: %s", env.prizePool().getLastAwardedDrawId());
+    console2.log("Last awarded draw claim count: %s", env.prizePool().claimCount());
+    console2.log("Next number of tiers: %s", env.prizePool().estimateNextNumberOfTiers());
     console2.log("Final number of tiers: %s", numTiers);
     for (uint8 tier = 0; tier < numTiers; tier++) {
       console2.log(
         "Final prize size for tier",
         tier,
         "is",
-        formatTokens(prizePool.getTierPrizeSize(tier), wethUsdValueOverTime.get(block.timestamp))
+        formatTokens(env.prizePool().getTierPrizeSize(tier), config.wethUsdValueOverTime().get(block.timestamp))
       );
-    }
-  }
-
-  function setUpApr(uint256 _startTime) public {
-    aprOverTime = new UintOverTime();
-
-    // Realistic test case
-    aprOverTime.add(_startTime, Constant.SIMPLE_APR);
-  }
-
-  function setUpExchangeRate(uint256 _startTime) public {
-    wethUsdValueOverTime = new SD59x18OverTime();
-    poolUsdValueOverTime = new SD59x18OverTime();
-  }
-
-  function setUpAprFromJson(uint256 _startTime) public {
-    aprOverTime = new UintOverTime();
-
-    string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicAaveApr.json");
-    string memory jsonData = vm.readFile(jsonFile);
-
-    // NOTE: Options for APR are: .usd or .eth
-    bytes memory usdData = vm.parseJson(jsonData, "$.usd");
-    HistoricApr[] memory aprData = abi.decode(usdData, (HistoricApr[]));
-
-    uint256 initialTimestamp = aprData[0].timestamp;
-    for (uint256 i = 0; i < aprData.length; i++) {
-      HistoricApr memory rowData = aprData[i];
-      aprOverTime.add(_startTime + (rowData.timestamp - initialTimestamp), rowData.apr);
     }
   }
 

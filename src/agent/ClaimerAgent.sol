@@ -8,11 +8,11 @@ import { Claimer } from "pt-v5-claimer/Claimer.sol";
 import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
 import { PrizeVault } from "pt-v5-vault/PrizeVault.sol";
 
-import { SingleChainEnvironment } from "../environment/SingleChain.sol";
+import { SingleChainEnvironment } from "../environment/SingleChainEnvironment.sol";
 import { Config } from "../utils/Config.sol";
 import { Utils } from "../utils/Utils.sol";
 
-contract ClaimerAgent is Config, Utils {
+contract ClaimerAgent is Utils {
   string claimerCsvFile = string.concat(vm.projectRoot(), "/data/claimerOut.csv");
   string claimerCsvColumns = "Draw ID, Tier, Winner, Prize Index, Fees For Batch";
 
@@ -51,9 +51,9 @@ contract ClaimerAgent is Config, Utils {
 
   uint logVerbosity;
 
-  constructor(SingleChainEnvironment _env, uint _logVerbosity) {
+  constructor(SingleChainEnvironment _env) {
     env = _env;
-    logVerbosity = _logVerbosity;
+    logVerbosity = _env.config().simulation().verbosity;
 
     claimer = env.claimer();
     prizePool = env.prizePool();
@@ -94,7 +94,7 @@ contract ClaimerAgent is Config, Utils {
         // see if any are worth claiming
         {
           uint claimFees = claimer.computeTotalFees(tier, tierPrizes);
-          uint cost = tierPrizes * env.gasConfig().claimCostInEth;
+          uint cost = tierPrizes * env.config().gas().claimCostInEth;
           if (isLogging(3)) {
             console2.log(
               "\tclaimFees for drawId %s tier %s with prize size %e:",
@@ -144,6 +144,10 @@ contract ClaimerAgent is Config, Utils {
           countPrizeIndicesPerWinner(nextPrizeIndex, targetClaimCount, winnersLength)
         );
 
+        if (isLogging(2)) {
+          console2.log("claiming %s prizes for drawId %s tier %s", tierPrizes, drawId, tier); 
+        }
+
         uint feesForBatch = claimer.claimPrizes(
           vault,
           tier,
@@ -166,7 +170,8 @@ contract ClaimerAgent is Config, Utils {
           })
         );
 
-        if (prizePool.isCanaryTier(tier)) {
+        // if it's the "egg" tier
+        if (tier == prizePool.numberOfTiers() - 1) {
           totalCanaryPrizesClaimed += targetClaimCount;
         } else {
           totalNormalPrizesClaimed += targetClaimCount;
@@ -298,7 +303,7 @@ contract ClaimerAgent is Config, Utils {
           if (prizePool.isWinner(address(vault), user, t, p)) {
             drawPrizes[drawId].push(Prize(t, user, p));
 
-            if (prizePool.isCanaryTier(t)) {
+            if (t == prizePool.numberOfTiers() - 1) {
               totalCanaryPrizesComputed++;
             } else {
               totalNormalPrizesComputed++;
@@ -316,7 +321,7 @@ contract ClaimerAgent is Config, Utils {
     if (isLogging(2)) {
       console2.log(
         "+++++++++++++++++++++ Prize Claim Cost:",
-        env.gasConfig().claimCostInEth
+        env.config().gas().claimCostInEth
       );
       console2.log(
         "+++++++++++++++++++++ Draw",

@@ -10,13 +10,12 @@ import {
   DrawManager,
   SingleChainEnvironment,
   PrizePool
-} from "../environment/SingleChain.sol";
+} from "../environment/SingleChainEnvironment.sol";
 
 import { Config } from "../utils/Config.sol";
-import { Constant } from "../utils/Constant.sol";
 import { Utils } from "../utils/Utils.sol";
 
-contract DrawAgent is Config, Constant, StdCheats, Utils {
+contract DrawAgent is StdCheats, Utils {
   string relayCostCsvFile = string.concat(vm.projectRoot(), "/data/relayCost.csv");
   string relayCostCsvColumns =
     "Draw ID, Timestamp, Awarding Cost, Awarding Profit, Relay Cost, Relay Profit";
@@ -37,7 +36,7 @@ contract DrawAgent is Config, Constant, StdCheats, Utils {
     RngBlockhash rng = env.rng();
     PrizePool prizePool = env.prizePool();
 
-    uint256 startDrawCost = env.gasConfig().startDrawCostInEth;
+    uint256 startDrawCost = env.config().gas().startDrawCostInEth;
     uint256 minimumStartDrawProfit = getMinimumProfit(startDrawCost);
     uint256 startDrawProfit;
 
@@ -57,7 +56,7 @@ contract DrawAgent is Config, Constant, StdCheats, Utils {
       // console2.log("Draw cannot start draw");
     }
 
-    uint256 awardDrawCost = env.gasConfig().awardDrawCostInEth;
+    uint256 awardDrawCost = env.config().gas().awardDrawCostInEth;
     uint256 minimumAwardDrawProfit = getMinimumProfit(awardDrawCost);
     uint256 awardDrawProfit;
 

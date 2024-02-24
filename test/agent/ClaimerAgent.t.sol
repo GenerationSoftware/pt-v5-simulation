@@ -5,13 +5,12 @@ import { console2 } from "forge-std/console2.sol";
 
 import { Test } from "forge-std/Test.sol";
 
-import { PrizePool } from "../../src/environment/SingleChain.sol";
-import { SingleChainEnvironment, PrizeVault, Claimer } from "../../src/environment/SingleChain.sol";
-import { ClaimerAgent } from "../../src/agent/Claimer.sol";
+import { SingleChainEnvironment, PrizePool, PrizeVault, Claimer } from "../../src/environment/SingleChainEnvironment.sol";
+import { ClaimerAgent } from "../../src/agent/ClaimerAgent.sol";
 
-import { Config } from "../../src/utils/Config.sol";
+import { GasConfig } from "../../src/utils/Config.sol";
 
-contract ClaimerAgentTest is Config, Test {
+contract ClaimerAgentTest is Test {
   SingleChainEnvironment env = SingleChainEnvironment(address(0xffff1));
   PrizePool prizePool = PrizePool(address(0xffff2));
   PrizeVault vault = PrizeVault(address(0xffff5));
@@ -77,7 +76,7 @@ contract ClaimerAgentTest is Config, Test {
     mockNoPrizes(user1, numTiers);
     mockNoPrizes(user2, numTiers);
 
-    agent = new ClaimerAgent(env, 0);
+    agent = new ClaimerAgent(env);
   }
 
   function testComputePrizes_noPrizes() public {
