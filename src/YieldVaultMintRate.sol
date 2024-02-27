@@ -60,7 +60,6 @@ contract YieldVaultMintRate is ERC4626, AccessControl {
 
   function setRatePerSecond(uint256 _ratePerSecond) external onlyMinterRole {
     _mintRate();
-    lastYieldTimestamp = block.timestamp;
     ratePerSecond = _ratePerSecond;
   }
 
@@ -68,23 +67,24 @@ contract YieldVaultMintRate is ERC4626, AccessControl {
     ERC20PermitMock(asset()).mint(address(this), amount);
   }
 
-  function mintRate() external onlyMinterRole {
-    _mintRate();
+  function mintRate() external onlyMinterRole returns (uint256) {
+    return _mintRate();
   }
 
   /* ============ Internal Functions ============ */
 
-  function _mintRate() internal {
+  function _mintRate() internal returns (uint256) {
     uint256 deltaTime = block.timestamp - lastYieldTimestamp;
     uint256 rateMultiplier = deltaTime * ratePerSecond;
     uint256 balance = ERC20PermitMock(asset()).balanceOf(address(this));
     uint256 mintAmount = (rateMultiplier * balance) / 1 ether;
 
-    // console2.log("Simulated Yield:", mintAmount);
-    // console2.log("Simulated Yield (/1e18):", mintAmount / 1e18);
+    // console2.log("Delta time: %s, yield: %e", deltaTime, mintAmount);
 
     ERC20PermitMock(asset()).mint(address(this), mintAmount);
     lastYieldTimestamp = block.timestamp;
+
+    return mintAmount;
   }
 
   /* ============ Modifiers ============ */

@@ -15,6 +15,12 @@ import {
 import { Config } from "../utils/Config.sol";
 import { Utils } from "../utils/Utils.sol";
 
+struct DrawDetail {
+  uint8 numberOfTiers;
+  uint256 startDrawReward;
+  uint256 finishDrawReward;
+}
+
 contract DrawAgent is StdCheats, Utils {
   string relayCostCsvFile = string.concat(vm.projectRoot(), "/data/relayCost.csv");
   string relayCostCsvColumns =
@@ -25,64 +31,67 @@ contract DrawAgent is StdCheats, Utils {
   uint256 public drawCount;
   uint256 public constant SEED = 0x23423;
 
+  mapping(uint24 drawId => DrawDetail drawInfo) internal _drawDetails;
+
   constructor(SingleChainEnvironment _env) {
     env = _env;
 
     initOutputFileCsv(relayCostCsvFile, relayCostCsvColumns);
   }
 
-  function check() public returns (uint256) {
-    DrawManager drawManager = env.drawManager();
-    RngBlockhash rng = env.rng();
-    PrizePool prizePool = env.prizePool();
+  function drawDetails(uint24 drawId) public view returns (DrawDetail memory) {
+    return _drawDetails[drawId];
+  }
 
-    uint256 startDrawCost = env.config().gas().startDrawCostInEth;
-    uint256 minimumStartDrawProfit = getMinimumProfit(startDrawCost);
-    uint256 startDrawProfit;
-
-    // console2.log("Draw startDrawCost %e", startDrawCost);
-    // console2.log("Draw minimumStartDrawProfit %e", minimumStartDrawProfit);
-
-    if (drawManager.canStartDraw()) {
-      uint fee = drawManager.startDrawFee();
-      // console2.log("Draw startDrawFee %e", fee);
-      startDrawProfit = fee < startDrawCost ? 0 : fee - startDrawCost;
-      if (startDrawProfit >= minimumStartDrawProfit) {
-        (uint32 requestId,) = rng.requestRandomNumber();
-        drawManager.startDraw(address(this), requestId);
-        // console2.log("Draw STARTED", prizePool.getDrawIdToAward());
-      }
-    } else {
-      // console2.log("Draw cannot start draw");
-    }
-
+  function willAwardDraw() public view returns (bool) {
     uint256 awardDrawCost = env.config().gas().awardDrawCostInEth;
     uint256 minimumAwardDrawProfit = getMinimumProfit(awardDrawCost);
     uint256 awardDrawProfit;
 
-    if (drawManager.canAwardDraw()) {
+    if (env.drawManager().canAwardDraw()) {
       // console2.log("Draw CAN AWARD");
-      uint fee = drawManager.awardDrawFee();
+      uint fee = env.drawManager().awardDrawFee();
       // console2.log("Draw awardDraw fee %e", fee);
       awardDrawProfit = fee < awardDrawCost ? 0 : fee - awardDrawCost;
-      if (awardDrawProfit >= minimumAwardDrawProfit) {
-        drawManager.awardDraw(address(this));
-        drawCount++;
-        // console2.log("Draw AWARDED", prizePool.getLastAwardedDrawId());
-
-        uint256[] memory logs = new uint256[](6);
-        logs[0] = prizePool.getLastAwardedDrawId();
-        logs[1] = block.timestamp;
-        logs[2] = startDrawCost;
-        logs[3] = startDrawProfit;
-        logs[4] = awardDrawCost;
-        logs[5] = awardDrawProfit;
-
-        logUint256ToCsv(relayCostCsvFile, logs);
-      }
+      // console2.log("awardDrawCost %e", awardDrawCost);
+      return awardDrawProfit >= minimumAwardDrawProfit;
     }
 
-    return prizePool.getLastAwardedDrawId();
+    return false;
+  }
+
+  function check() public returns (bool) {
+    DrawManager drawManager = env.drawManager();
+    RngBlockhash rng = env.rng();
+    PrizePool prizePool = env.prizePool();
+
+    uint24 drawId = prizePool.getDrawIdToAward();
+
+    if (drawManager.canStartDraw()) {
+      uint fee = drawManager.startDrawFee();
+      // console2.log("fee %e", fee);
+      uint256 startDrawCost = env.config().gas().startDrawCostInEth;
+      // console2.log("cost %e", startDrawCost);
+      uint256 startDrawProfit = fee < startDrawCost ? 0 : fee - startDrawCost;
+      if (startDrawProfit >= getMinimumProfit(startDrawCost)) {
+        // console2.log("started draw", drawId);
+        (uint32 requestId,) = rng.requestRandomNumber();
+        drawManager.startDraw(address(this), requestId);
+        _drawDetails[drawId].startDrawReward = fee;
+      }
+    } else {
+    }
+
+    if (willAwardDraw()) {
+      _drawDetails[drawId].numberOfTiers = prizePool.numberOfTiers();
+      _drawDetails[drawId].finishDrawReward = drawManager.awardDrawFee();
+      // console2.log("Awarding draw ", drawId);
+      drawManager.awardDraw(address(this));
+      drawCount++;
+      return true;
+    }
+
+    return false;
   }
 
   function getMinimumProfit(uint256 _cost) public pure returns (uint256) {

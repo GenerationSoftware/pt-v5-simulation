@@ -12,7 +12,6 @@ import { UintOverTime } from "./UintOverTime.sol";
 struct SimulationConfig {
   uint256 durationDraws;
   uint256 numUsers;
-  uint256 simpleApr;
   uint256 timeStep;
   uint256 totalValueLocked;
   uint256 verbosity;
@@ -62,6 +61,7 @@ contract Config is CommonBase {
   using SafeCast for uint256;
 
   UintOverTime public aprOverTime;
+  UintOverTime public tvlOverTime;
 
   SD59x18OverTime public wethUsdValueOverTime; // Value of WETH over time (USD / WETH)
   SD59x18OverTime public poolUsdValueOverTime; // Value of the pool token over time (USD / POOL)
@@ -91,8 +91,7 @@ contract Config is CommonBase {
 
     _simulation.numUsers = vm.parseJsonUint(config, "$.simulation.num_users");
     _simulation.timeStep = vm.parseJsonUint(config, "$.simulation.time_step");
-    _simulation.simpleApr = vm.parseJsonUint(config, "$.simulation.simple_apr");
-    _simulation.totalValueLocked = uint(convert(convert(int(vm.parseJsonUint(config, "$.simulation.tvl_usd"))).div(poolUsdValueOverTime.get(block.timestamp))));
+    _simulation.totalValueLocked = uint(convert(convert(int(vm.parseJsonUint(config, "$.simulation.tvl_usd"))).mul(convert(1e2)).div(poolUsdValueOverTime.get(block.timestamp))));
     _simulation.verbosity = vm.parseJsonUint(config, "$.simulation.verbosity");
     _simulation.durationDraws = vm.parseJsonUint(config, "$.simulation.duration_draws");
     
@@ -124,24 +123,13 @@ contract Config is CommonBase {
     _gas.liquidationCostInEth = vm.parseJsonUint(config, "$.gas.liquidation_cost_in_eth"); 
 
     aprOverTime = new UintOverTime();
-    aprOverTime.add(block.timestamp, _simulation.simpleApr);
-  }
+    uint[] memory aprs = vm.parseJsonUintArray(config, "$.simulation.apr_for_each_draw");
+    if (aprs.length > 0) {
+      for (uint i = 0; i < aprs.length; i++) {
+        aprOverTime.add(block.timestamp + (i * _prizePool.drawPeriodSeconds), aprs[i]);
+      }
+    }
 
-  function setUpAprFromJson(uint256 _startTime) public {
-    // aprOverTime = new UintOverTime();
-
-    // string memory jsonFile = string.concat(vm.projectRoot(), "/config/historicAaveApr.json");
-    // string memory jsonData = vm.readFile(jsonFile);
-
-    // // NOTE: Options for APR are: .usd or .eth
-    // bytes memory usdData = vm.parseJson(jsonData, "$.usd");
-    // HistoricApr[] memory aprData = abi.decode(usdData, (HistoricApr[]));
-
-    // uint256 initialTimestamp = aprData[0].timestamp;
-    // for (uint256 i = 0; i < aprData.length; i++) {
-    //   HistoricApr memory rowData = aprData[i];
-    //   aprOverTime.add(_startTime + (rowData.timestamp - initialTimestamp), rowData.apr);
-    // }
   }
 
   /**

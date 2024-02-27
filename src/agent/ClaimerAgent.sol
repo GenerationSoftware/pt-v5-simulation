@@ -29,23 +29,19 @@ contract ClaimerAgent is Utils {
   }
 
   // draw => tier => Tier
-  mapping(uint256 => Prize[]) internal drawPrizes;
+  mapping(uint256 drawId => Prize[]) internal drawPrizes;
   uint256 public nextPrizeIndex;
-  uint256 public computedDrawId;
+  uint24 public computedDrawId;
 
-  uint256 public totalNormalPrizesComputed;
-  uint256 public totalCanaryPrizesComputed;
-
-  uint256 public totalNormalPrizesClaimed;
-  uint256 public totalCanaryPrizesClaimed;
+  uint256 public totalPrizesComputed;
+  uint256 public totalPrizesClaimed;
 
   uint256 public totalFees;
 
-  mapping(uint256 => uint8) public drawNumberOfTiers;
-  mapping(uint256 => mapping(uint8 => uint256)) public drawNormalTierComputedPrizeCounts;
-  mapping(uint256 => mapping(uint8 => uint256))
-    public drawNormalTierInsufficientLiquidityPrizeCounts;
-  mapping(uint256 => mapping(uint8 => uint256)) public drawNormalTierClaimedPrizeCounts;
+  mapping(uint24 drawId => uint8 numTiers) public drawNumberOfTiers;
+  mapping(uint24 drawId => mapping(uint8 tier => uint256 count)) public drawTierComputedPrizeCounts;
+  mapping(uint24 drawId => mapping(uint8 tier => uint256 count)) public drawTierInsufficientLiquidityPrizeCounts;
+  mapping(uint24 drawId => mapping(uint8 tier => uint256 count)) public drawTierClaimedPrizeCounts;
 
   uint constant INSPECT_DRAW_ID = 400;
 
@@ -75,7 +71,7 @@ contract ClaimerAgent is Utils {
   }
 
   function check() public returns (uint256) {
-    uint drawId = prizePool.getLastAwardedDrawId();
+    uint24 drawId = prizePool.getLastAwardedDrawId();
 
     if (drawId != computedDrawId) {
       computePrizes();
@@ -125,7 +121,7 @@ contract ClaimerAgent is Utils {
       uint32 maxPrizesPerLiquidity = uint32(prizePool.getTierRemainingLiquidity(tier) / prizeSize);
 
       if (targetClaimCount > maxPrizesPerLiquidity) {
-        drawNormalTierInsufficientLiquidityPrizeCounts[drawId][tier] +=
+        drawTierInsufficientLiquidityPrizeCounts[drawId][tier] +=
           targetClaimCount -
           maxPrizesPerLiquidity;
         targetClaimCount = maxPrizesPerLiquidity;
@@ -170,13 +166,8 @@ contract ClaimerAgent is Utils {
           })
         );
 
-        // if it's the "egg" tier
-        if (tier == prizePool.numberOfTiers() - 1) {
-          totalCanaryPrizesClaimed += targetClaimCount;
-        } else {
-          totalNormalPrizesClaimed += targetClaimCount;
-          drawNormalTierClaimedPrizeCounts[computedDrawId][tier] += targetClaimCount;
-        }
+        totalPrizesClaimed += targetClaimCount;
+        drawTierClaimedPrizeCounts[computedDrawId][tier] += targetClaimCount;
 
         nextPrizeIndex += targetClaimCount;
         remainingPrizes = drawPrizes[computedDrawId].length - nextPrizeIndex;
@@ -291,7 +282,7 @@ contract ClaimerAgent is Utils {
   }
 
   function computePrizes() public {
-    uint256 drawId = prizePool.getLastAwardedDrawId();
+    uint24 drawId = prizePool.getLastAwardedDrawId();
     require(drawId >= computedDrawId, "invalid draw");
     uint8 numTiers = prizePool.numberOfTiers();
     drawNumberOfTiers[drawId] = numTiers;
@@ -302,13 +293,8 @@ contract ClaimerAgent is Utils {
         for (uint32 p = 0; p < prizePool.getTierPrizeCount(t); p++) {
           if (prizePool.isWinner(address(vault), user, t, p)) {
             drawPrizes[drawId].push(Prize(t, user, p));
-
-            if (t == prizePool.numberOfTiers() - 1) {
-              totalCanaryPrizesComputed++;
-            } else {
-              totalNormalPrizesComputed++;
-              drawNormalTierComputedPrizeCounts[drawId][t]++;
-            }
+            totalPrizesComputed++;
+            drawTierComputedPrizeCounts[drawId][t]++;
           }
         }
       }
@@ -316,7 +302,7 @@ contract ClaimerAgent is Utils {
     computedDrawId = drawId;
     nextPrizeIndex = 0;
 
-    // console2.log("+++++++++++++++++++++ Total Normal Prizes Computed", drawNormalTierComputedPrizeCounts[drawId][t]);
+    // console2.log("+++++++++++++++++++++ Total Normal Prizes Computed", drawTierComputedPrizeCounts[drawId][t]);
 
     if (isLogging(2)) {
       console2.log(

@@ -11,7 +11,7 @@ import { UD2x18, ud2x18 } from "prb-math/UD2x18.sol";
 import { SafeCast } from "openzeppelin/utils/math/SafeCast.sol";
 
 import { ClaimerAgent } from "../../src/agent/ClaimerAgent.sol";
-import { DrawAgent } from "../../src/agent/DrawAgent.sol";
+import { DrawAgent, DrawDetail } from "../../src/agent/DrawAgent.sol";
 import { LiquidatorAgent } from "../../src/agent/LiquidatorAgent.sol";
 
 import { SingleChainEnvironment } from "../../src/environment/SingleChainEnvironment.sol";
@@ -23,6 +23,8 @@ import { Vm } from "forge-std/Vm.sol";
 
 import { Config } from "../../src/utils/Config.sol";
 import { Utils } from "../../src/utils/Utils.sol";
+
+import { DrawLog, Logger } from "../../src/utils/Logger.sol";
 
 contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   using SafeCast for uint256;
@@ -45,15 +47,18 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   DrawAgent public drawAgent;
   LiquidatorAgent public liquidatorAgent;
 
+  Logger public logger;
+
+  mapping(uint24 drawId => DrawLog) public drawLogs;
+
   function setUp() public {
     startTime = block.timestamp + 10000 days;
     vm.warp(startTime);
     config = new Config();
     config.load(vm.envString("CONFIG"));
+    logger = new Logger(vm.envString("OUTPUT"));
 
     initOutputFileCsv(simulatorCsvFile, simulatorCsvColumns);
-
-    console2.log("Setting up at timestamp: ", block.timestamp, "day:", block.timestamp / 1 days);
 
     env = new SingleChainEnvironment(config);
 
@@ -63,68 +68,78 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   }
 
   function testSingleChain() public noGasMetering recordEvents {
+    PrizePool prizePool = env.prizePool();
+
     uint256 duration = (config.simulation().durationDraws+2) * config.prizePool().drawPeriodSeconds;
-    uint256 timeStep = config.simulation().timeStep;
-    for (uint256 i = startTime; i <= startTime + duration; i += timeStep) {
+    for (uint256 i = startTime; i <= startTime + duration; i += config.simulation().timeStep) {
       vm.warp(i);
       vm.roll(block.number + 1);
 
-      // Cache data at beginning of tick
-      uint256 availableYield = env.vault().liquidatableBalanceOf(address(env.vault()));
-      // console2.log("availableYield %e ", availableYield);
-      // console2.log("elapsed time: ", i - startTime);
-      uint256 availablePrizeVaultShares = env.pair().maxAmountOut();
-      uint256 prizePoolReserve = env.prizePool().reserve();
-      uint256 requiredPrizeTokens = availablePrizeVaultShares != 0
-        ? env.pair().computeExactAmountIn(availablePrizeVaultShares)
-        : 0;
-
-      uint256 pendingReserveContributions = env.prizePool().pendingReserveContributions();
-
       // Let agents do their thing
-      env.updateApr();
-      env.mintYield();
-
+      uint apr = env.updateApr();
       liquidatorAgent.check(config.wethUsdValueOverTime().get(block.timestamp), config.poolUsdValueOverTime().get(block.timestamp));
-      drawAgent.check();
+      
+      uint24 finalizedDrawId = env.prizePool().getLastAwardedDrawId();
+      DrawLog memory finalizedDrawLog = drawLogs[finalizedDrawId];
+      finalizedDrawLog.apr = apr;
+      if (drawAgent.check()) {
+        uint24 closedDrawId = env.prizePool().getLastAwardedDrawId();
+        DrawLog memory closedDrawLog = drawLogs[closedDrawId];
+        DrawDetail memory closedDrawDetail = drawAgent.drawDetails(closedDrawId);
+        closedDrawLog.drawId = closedDrawId;
+        closedDrawLog.numberOfTiers = closedDrawDetail.numberOfTiers;
+        closedDrawLog.startDrawReward = closedDrawDetail.startDrawReward;
+        closedDrawLog.finishDrawReward = closedDrawDetail.finishDrawReward;
+        closedDrawLog.burnedPool = liquidatorAgent.totalBurnedPoolPerDraw(closedDrawId);
+
+        {
+          for (uint8 t = 0; t < closedDrawLog.numberOfTiers; t++) {
+            closedDrawLog.tierLiquidityRemaining[t] = prizePool.getTierRemainingLiquidity(t);
+            closedDrawLog.tierPrizeSizes[t] = prizePool.getTierPrizeSize(t);
+            closedDrawLog.tierPrizeSizesUsd[t] = formatUsd(prizePool.getTierPrizeSize(t), config.wethUsdValueOverTime().get(block.timestamp));
+          }
+
+          if (finalizedDrawId > 0) {
+            for (uint8 t = 0; t < finalizedDrawLog.numberOfTiers; t++) {
+              finalizedDrawLog.claimedPrizes[t] = claimerAgent.drawTierClaimedPrizeCounts(finalizedDrawId, t);
+              finalizedDrawLog.computedPrizes[t] = claimerAgent.drawTierComputedPrizeCounts(finalizedDrawId, t);
+            }  
+          }
+        }
+
+        drawLogs[closedDrawId] = closedDrawLog;
+        drawLogs[finalizedDrawId] = finalizedDrawLog;
+      }
       claimerAgent.check();
-
-      uint256[] memory logs = new uint256[](9);
-      logs[0] = env.prizePool().getLastAwardedDrawId();
-      logs[1] = block.timestamp;
-      logs[2] = availableYield;
-      logs[3] = availablePrizeVaultShares;
-      logs[4] = requiredPrizeTokens;
-      logs[5] = prizePoolReserve;
-      logs[6] = pendingReserveContributions;
-      logs[7] = config.aprOverTime().get(i);
-      logs[8] = 0;
-
-      logUint256ToCsv(simulatorCsvFile, logs);
-
-      // console2.log("TOTAL FEE TO USE TO BURN: %e", env.prizePool().rewardBalance(address(env.feeBurner())));
     }
+
+    dumpLogs();
 
     env.removeUsers();
 
     printDraws();
     printMissedPrizes();
     printTotalNormalPrizes();
-    printTotalCanaryPrizes();
     printTotalClaimFees();
     printPrizeSummary();
     printFinalPrizes();
     printLiquidity();
   }
 
+  function dumpLogs() public {
+    for (uint24 drawId = 1; drawId <= env.prizePool().getLastAwardedDrawId(); drawId++) {
+      logger.log(drawLogs[drawId]);
+    }
+  }
+
   function printMissedPrizes() public view {
-    uint256 lastDrawId = env.prizePool().getLastAwardedDrawId();
-    for (uint32 drawId = 0; drawId <= lastDrawId; drawId++) {
+    uint24 lastDrawId = env.prizePool().getLastAwardedDrawId();
+    for (uint24 drawId = 0; drawId <= lastDrawId; drawId++) {
       uint256 numTiers = claimerAgent.drawNumberOfTiers(drawId);
       for (uint8 tier = 0; tier < numTiers; tier++) {
-        uint256 prizeCount = claimerAgent.drawNormalTierComputedPrizeCounts(drawId, tier);
-        uint256 claimCount = claimerAgent.drawNormalTierClaimedPrizeCounts(drawId, tier);
-        if (claimCount < prizeCount) {
+        uint256 prizeCount = claimerAgent.drawTierComputedPrizeCounts(drawId, tier);
+        uint256 claimCount = claimerAgent.drawTierClaimedPrizeCounts(drawId, tier);
+        if (claimCount < prizeCount && tier < (numTiers - 1)) { // not last canary tier
           console2.log(
             "!!!!! MISSED PRIZES draw, tier, count",
             drawId,
@@ -160,26 +175,16 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   }
 
   function printTotalNormalPrizes() public view {
-    uint256 normalComputed = claimerAgent.totalNormalPrizesComputed();
-    uint256 normalClaimed = claimerAgent.totalNormalPrizesClaimed();
+    uint256 normalComputed = claimerAgent.totalPrizesComputed();
+    uint256 normalClaimed = claimerAgent.totalPrizesClaimed();
     console2.log("");
     console2.log("Number of normal prizes", normalComputed);
     console2.log("Number of prizes claimed", normalClaimed);
-    console2.log("Missed normal prizes", normalComputed - normalClaimed);
-  }
-
-  function printTotalCanaryPrizes() public view {
-    uint256 canaryComputed = claimerAgent.totalCanaryPrizesComputed();
-    uint256 canaryClaimed = claimerAgent.totalCanaryPrizesClaimed();
-    console2.log("");
-    console2.log("Number of canary prizes", canaryComputed);
-    console2.log("Number of canary prizes claimed", canaryClaimed);
-    console2.log("Missed canary prizes", canaryComputed - canaryClaimed);
+    console2.log("Missed total prizes (inc. canary)", normalComputed - normalClaimed);
   }
 
   function printTotalClaimFees() public view {
-    uint256 totalPrizes = claimerAgent.totalNormalPrizesClaimed() +
-      claimerAgent.totalCanaryPrizesClaimed();
+    uint256 totalPrizes = claimerAgent.totalPrizesClaimed();
     uint256 averageFeePerClaim = totalPrizes > 0 ? claimerAgent.totalFees() / totalPrizes : 0;
     console2.log("");
     console2.log("Average fee per claim (WETH): ", formatTokens(averageFeePerClaim, config.wethUsdValueOverTime().get(block.timestamp)));
@@ -193,8 +198,8 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   function printPrizeSummary() public view {
     console2.log("");
     uint8 maxTiers;
-    uint256 lastDrawId = env.prizePool().getLastAwardedDrawId();
-    for (uint32 drawId = 0; drawId <= lastDrawId; drawId++) {
+    uint24 lastDrawId = env.prizePool().getLastAwardedDrawId();
+    for (uint24 drawId = 0; drawId <= lastDrawId; drawId++) {
       uint8 numTiers = claimerAgent.drawNumberOfTiers(drawId);
       if (numTiers > maxTiers) {
         maxTiers = numTiers;
@@ -202,13 +207,13 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
     }
 
     uint256[] memory tierPrizeCounts = new uint256[](maxTiers);
-    for (uint32 drawId = 0; drawId <= lastDrawId; drawId++) {
+    for (uint24 drawId = 0; drawId <= lastDrawId; drawId++) {
       uint8 numTiers = claimerAgent.drawNumberOfTiers(drawId);
       if (numTiers > maxTiers) {
         maxTiers = numTiers;
       }
       for (uint8 tier = 0; tier < numTiers; tier++) {
-        tierPrizeCounts[tier] += claimerAgent.drawNormalTierClaimedPrizeCounts(drawId, tier);
+        tierPrizeCounts[tier] += claimerAgent.drawTierClaimedPrizeCounts(drawId, tier);
       }
     }
 
@@ -296,4 +301,21 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
 
     return string.concat(wholePart, ".", decimalPart, " ($", vm.toString(usdWhole), ".", usdCentsPart, ")");
   }
+
+  function formatUsd(uint256 tokens, SD59x18 usdPerToken) public view returns(string memory) {
+    uint256 amountInUSD = uint256(convert(convert(int256(tokens)).mul(usdPerToken)));
+    uint256 usdWhole = amountInUSD / (1e2);
+    uint256 usdCentsWhole = amountInUSD % (1e2);
+    string memory usdCentsPart = vm.toString(usdCentsWhole);
+
+    // show 2 decimals
+    while(bytes(usdCentsPart).length < 2) {
+      usdCentsPart = string.concat("0", usdCentsPart);
+    }
+
+    return string.concat(vm.toString(usdWhole), ".", usdCentsPart);
+  }
+
+
+
 }

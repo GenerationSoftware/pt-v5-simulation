@@ -1,20 +1,42 @@
 {
     "simulation": {
-        "duration_draws": "8",
         "num_users": "1",
-        "simple_apr": "5000000000000000000",
         "time_step": "1800",
-        "tvl_usd": "100000000",
-        "verbosity": "1"
+        "tvl_usd": "10000000",
+        "verbosity": "1",
+        
+        "duration_draws": "20",
+        "apr_for_each_draw" : [
+            "25000000000000000",
+            "30000000000000000",
+            "35000000000000000",
+            "40000000000000000",
+            "45000000000000000",
+            "50000000000000000",
+            "55000000000000000",
+            "60000000000000000",
+            "65000000000000000",
+            "70000000000000000",
+            "60000000000000000",
+            "50000000000000000",
+            "30000000000000000",
+            "20000000000000000",
+            "10000000000000000",
+            "10000000000000000",
+            "10000000000000000",
+            "10000000000000000",
+            "10000000000000000",
+            "10000000000000000"
+        ]
     },
     
     "prize_pool": {
-        "canary_shares": "10",
+        "canary_shares": "5",
         "draw_period_seconds": "86400",
         "draw_timeout": "30",
         "grand_prize_period_draws": "365",
         "number_of_tiers": "4",
-        "reserve_shares": "50",
+        "reserve_shares": "100",
         "tier_liquidity_utilization_rate": "1000000000000000000",
         "tier_shares": "100"
     },
@@ -36,9 +58,9 @@
     },
     
     "gas": {
-        "start_draw_cost_in_eth": "45741000000000",
-        "award_draw_cost_in_eth": "121500000000000",
+        "start_draw_cost_in_eth": "40000000000000",
+        "award_draw_cost_in_eth": "100000000000000",
         "claim_cost_in_eth": "60000000000000",
-        "liquidation_cost_in_eth": "150000000000000"
-    } 
+        "liquidation_cost_in_eth": "100000000000000"
+    }
 }

@@ -4,6 +4,6 @@ out = 'out'
 test = 'test'
 libs = ['lib']
 solc = "0.8.19"
-fs_permissions = [{ access = "read", path = "./broadcast"},{ access = "read-write", path = "./data" },{ access = "read", path = "./config" }]
+fs_permissions = [{ access = "read", path = "./broadcast"},{ access = "read-write", path = "./data" },{ access = "read-write", path = "./config" }]
 gas_reports = ["*"]
 memory_limit = 1000000000 # 1 GB

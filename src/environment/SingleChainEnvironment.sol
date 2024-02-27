@@ -114,9 +114,6 @@ contract SingleChainEnvironment is Utils, StdCheats {
       address(feeBurner)
     );
 
-
-
-
     prizePool.setDrawManager(address(drawManager));
 
     underlyingToken = new ERC20PermitMock("USDC");
@@ -151,7 +148,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
 
 
     initializeCgdaLiquidator(liquidatorConfig);
-    
+    console2.log("config.simulation().totalValueLocked: ", config.simulation().totalValueLocked);
     addUsers(config.simulation().numUsers, config.simulation().totalValueLocked / config.simulation().numUsers);
   }
 
@@ -245,12 +242,13 @@ contract SingleChainEnvironment is Utils, StdCheats {
     return users.length;
   }
 
-  function mintYield() public {
-    yieldVault.mintRate();
+  function mintYield() public returns (uint) {
+    return yieldVault.mintRate();
   }
 
-  function updateApr() public {
-    uint256 ratePerSecond = config.aprOverTime().get(block.timestamp) / 365 days;
-    yieldVault.setRatePerSecond(ratePerSecond);
+  function updateApr() public returns (uint256) {
+    uint256 apr = config.aprOverTime().get(block.timestamp);
+    yieldVault.setRatePerSecond(apr / 365 days);
+    return apr;
   }
 }

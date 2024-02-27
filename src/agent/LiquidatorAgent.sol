@@ -31,6 +31,8 @@ contract LiquidatorAgent is Utils {
 
   uint public burnedPool;
 
+  mapping(uint24 drawId => uint256 totalBurnedPool) public totalBurnedPoolPerDraw;
+
   constructor(SingleChainEnvironment _env) {
     env = _env;
 
@@ -43,14 +45,24 @@ contract LiquidatorAgent is Utils {
   }
 
   function check(SD59x18 wethUsdValue, SD59x18 poolUsdValue) public {
-    checkLiquidationPair(wethUsdValue, poolUsdValue, wethUsdValue, env.pair());
-    checkLiquidationPair(poolUsdValue, wethUsdValue, wethUsdValue, env.feeBurnerPair());
+    uint256 amountOut;
+    uint256 amountIn;
+    SD59x18 profit;
+    uint24 openDrawId = prizePool.getOpenDrawId();
+    (amountOut, amountIn, profit) = checkLiquidationPair(wethUsdValue, poolUsdValue, wethUsdValue, env.pair());
+    if (profit.gt(wrap(0))) {
+      // console2.log("draw %s: liquidating %s for %s ", openDrawId, amountOut, amountIn);
+    }
+    (amountOut, amountIn, profit) = checkLiquidationPair(poolUsdValue, wethUsdValue, wethUsdValue, env.feeBurnerPair());
+    if (profit.gt(wrap(0))) {
+      totalBurnedPoolPerDraw[openDrawId] += amountIn;
+    }
   }
 
-  function checkLiquidationPair(SD59x18 tokenInValueUsd, SD59x18 tokenOutValueUsd, SD59x18 ethValueUsd, ILiquidationPair pair) public {
+  function checkLiquidationPair(SD59x18 tokenInValueUsd, SD59x18 tokenOutValueUsd, SD59x18 ethValueUsd, ILiquidationPair pair) public returns (uint256 amountOut, uint256 amountIn, SD59x18 profit) {
     uint256 maxAmountOut = pair.maxAmountOut();
 
-    (uint256 amountOut, uint256 amountIn, SD59x18 profit) = _findBestProfit(tokenInValueUsd, tokenOutValueUsd, ethValueUsd, pair);
+    (amountOut, amountIn, profit) = _findBestProfit(tokenInValueUsd, tokenOutValueUsd, ethValueUsd, pair);
 
     // if (isFeeBurner(pair) && maxAmountOut > 0) {
     //   console2.log("Available to burn: %e", maxAmountOut);

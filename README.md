@@ -1,16 +1,20 @@
-# Foundry template
+# PoolTogether V5 Simulator
 
-Template to kickstart a Foundry project.
+This project simulates PoolTogether V5 in a configurable environment.
 
-## Getting started
+## Usage
 
-The easiest way to get started is by clicking the [Use this template](https://github.com/pooltogether/foundry-template/generate) button at the top right of this page.
+The simulator is configured using JSON files in the config directory. The simulation outputs results to a CSV file.
 
-If you prefer to go the CLI way:
+To run the simulation for a certain config and output:
 
 ```
-forge init my-project --template https://github.com/pooltogether/foundry-template
+CONFIG=config/optimism.json OUTPUT=config/optimism-output.csv forge test -vv --mt testSingleChain
 ```
+
+There are also bash scripts that can be run as a shortcut:
+
+`./scripts/optimism.sh`
 
 ## Development
 
