@@ -124,8 +124,10 @@ contract ClaimerAgent is Utils {
         drawTierInsufficientLiquidityPrizeCounts[drawId][tier] +=
           targetClaimCount -
           maxPrizesPerLiquidity;
+        console2.log("INSUFFICIENT LIQUIDITY: Draw id %s, tier %s, num missing %s ", drawId, tier, targetClaimCount - maxPrizesPerLiquidity);
+        console2.log("remaining liquidity", prizePool.getTierRemainingLiquidity(tier));
+        console2.log("prize size: ", prizeSize);
         targetClaimCount = maxPrizesPerLiquidity;
-        console2.log("INSUFFICIENT LIQUIDITY");
       }
 
       if (targetClaimCount > 0) {

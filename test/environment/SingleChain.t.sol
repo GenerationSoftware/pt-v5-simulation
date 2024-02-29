@@ -52,17 +52,22 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   mapping(uint24 drawId => DrawLog) public drawLogs;
 
   function setUp() public {
+    console2.log("SingleChain setUp 1");
     startTime = block.timestamp + 10000 days;
     vm.warp(startTime);
     config = new Config();
     config.load(vm.envString("CONFIG"));
+    console2.log("SingleChain setUp 2");
     logger = new Logger(vm.envString("OUTPUT"));
 
     initOutputFileCsv(simulatorCsvFile, simulatorCsvColumns);
 
-    env = new SingleChainEnvironment(config);
+    console2.log("SingleChain setUp 3");
 
+    env = new SingleChainEnvironment(config);
+console2.log("SingleChain setUp 4");
     claimerAgent = new ClaimerAgent(env);
+    console2.log("SingleChain setUp 5");
     drawAgent = new DrawAgent(env);
     liquidatorAgent = new LiquidatorAgent(env);
   }

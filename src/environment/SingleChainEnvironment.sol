@@ -71,12 +71,14 @@ contract SingleChainEnvironment is Utils, StdCheats {
     DrawManagerConfig memory drawManagerConfig = config.drawManager();
     GasConfig memory gasConfig = config.gas();
 
+    // console2.log("SingleChainEnvironment constructor 1");
 
     twab = new TwabController(
       prizePoolConfig.drawPeriodSeconds,
       config.getTwabControllerOffset()
     );
 
+    // console2.log("SingleChainEnvironment constructor 2");
 
     prizeToken = new ERC20PermitMock("WETH");
     poolToken = new ERC20PermitMock("POOL");
@@ -98,8 +100,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
       })
     );
 
-
-
+    // console2.log("SingleChainEnvironment constructor 3");
 
     rng = new RngBlockhash();
     feeBurner = new FeeBurner(prizePool, address(poolToken), address(this));
@@ -116,10 +117,15 @@ contract SingleChainEnvironment is Utils, StdCheats {
 
     prizePool.setDrawManager(address(drawManager));
 
+    // console2.log("SingleChainEnvironment constructor 4");
+
     underlyingToken = new ERC20PermitMock("USDC");
     yieldVault = new YieldVaultMintRate(underlyingToken, "Yearnish yUSDC", "yUSDC", address(this));
 
     vaultFactory = new PrizeVaultFactory();
+
+    // console2.log("SingleChainEnvironment constructor 5");
+
 
     claimer = new Claimer(
       prizePool,
@@ -129,7 +135,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
       claimerConfig.maxFeePortionOfPrize
     );
 
-
+    // console2.log("SingleChainEnvironment constructor 6");
 
 
     vault = PrizeVault(
@@ -148,7 +154,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
 
 
     initializeCgdaLiquidator(liquidatorConfig);
-    console2.log("config.simulation().totalValueLocked: ", config.simulation().totalValueLocked);
+    // console2.log("config.simulation().totalValueLocked: ", config.simulation().totalValueLocked);
     addUsers(config.simulation().numUsers, config.simulation().totalValueLocked / config.simulation().numUsers);
   }
 

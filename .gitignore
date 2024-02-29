@@ -16,3 +16,5 @@ node_modules
 .history
 
 data/*.csv
+
+config/output

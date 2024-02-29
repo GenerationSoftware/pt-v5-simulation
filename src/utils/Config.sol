@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.19;
 
+import "forge-std/console2.sol";
+
 import { CommonBase } from "forge-std/Base.sol";
 import { SD59x18, convert } from "prb-math/SD59x18.sol";
 import { UD2x18, ud2x18 } from "prb-math/UD2x18.sol";
@@ -147,6 +149,8 @@ contract Config is CommonBase {
 
   // Claimer
   function getClaimerTimeToReachMaxFee() public view returns (uint256) {
+    // console2.log("getClaimerTimeToReachMaxFee _prizePool.drawPeriodSeconds: ", _prizePool.drawPeriodSeconds);
+    // console2.log("getClaimerTimeToReachMaxFee _drawManager.auctionDuration: ", _drawManager.auctionDuration);
     return (_prizePool.drawPeriodSeconds - (2 * _drawManager.auctionDuration)) / 2;
   }
 

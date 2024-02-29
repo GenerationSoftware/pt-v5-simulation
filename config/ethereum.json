@@ -1,7 +1,7 @@
 {
     "simulation": {
         "num_users": "128",
-        "time_step": "1800",
+        "time_step": "7200",
         "tvl_usd": "10000000",
         "verbosity": "1",
         
@@ -31,7 +31,7 @@
     },
     
     "prize_pool": {
-        "draw_period_seconds": "86400",
+        "draw_period_seconds": "1209600",
         "draw_timeout": "30",
         "grand_prize_period_draws": "365",
         "number_of_tiers": "4",
@@ -42,8 +42,8 @@
     },
     
     "draw_manager": {
-        "auction_duration": "21600",
-        "auction_target_time": "3600",
+        "auction_duration": "86400",
+        "auction_target_time": "21600",
         "auction_max_reward": "10000000000000000000000",
         "first_auction_target_reward_fraction": "250000000000000000"
     },
@@ -58,9 +58,9 @@
     },
     
     "gas": {
-        "start_draw_cost_in_eth": "40000000000000",
-        "award_draw_cost_in_eth": "100000000000000",
-        "claim_cost_in_eth": "60000000000000",
-        "liquidation_cost_in_eth": "100000000000000"
+        "start_draw_cost_in_eth": "20000000000000000",
+        "award_draw_cost_in_eth": "15000000000000000",
+        "claim_cost_in_eth": "10000000000000000",
+        "liquidation_cost_in_eth": "30000000000000000"
     }
 }
