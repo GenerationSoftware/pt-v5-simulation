@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.19;
+pragma solidity ^0.8.19;
 
 import { console2 } from "forge-std/console2.sol";
 
@@ -31,7 +31,7 @@ contract ClaimerAgentTest is Test {
 
     GasConfig memory gasConfig = GasConfig({
       startDrawCostInEth: 0.3 gwei * 152_473,
-      awardDrawCostInEth: 0.3 gwei * 405_000,
+      finishDrawCostInEth: 0.3 gwei * 405_000,
       claimCostInEth: 0.3 gwei * 150_000,
       liquidationCostInEth: 0.3 gwei * 500_000
     });

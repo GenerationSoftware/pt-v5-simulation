@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.19;
+pragma solidity ^0.8.19;
 
 import { StdCheats } from "forge-std/StdCheats.sol";
 
@@ -137,7 +137,8 @@ contract SingleChainEnvironment is Utils, StdCheats {
 
     // console2.log("SingleChainEnvironment constructor 6");
 
-
+    underlyingToken.mint(address(this), vaultFactory.YIELD_BUFFER());
+    underlyingToken.approve(address(vaultFactory), vaultFactory.YIELD_BUFFER());
     vault = PrizeVault(
       vaultFactory.deployVault(
         "PoolTogether Prize USDC",
@@ -147,7 +148,6 @@ contract SingleChainEnvironment is Utils, StdCheats {
         address(claimer),
         address(0), // yield fee recipient
         0, // yield fee
-        1e5, // yield buffer
         address(this)
       )
     );

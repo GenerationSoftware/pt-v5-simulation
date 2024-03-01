@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.19;
+pragma solidity ^0.8.19;
 
 import { console2 } from "forge-std/console2.sol";
 import { Vm } from "forge-std/Vm.sol";
@@ -82,6 +82,8 @@ contract ClaimerAgent is Utils {
 
     while (remainingPrizes > 0) {
       (uint8 tier, uint256 tierPrizes) = countContiguousTierPrizes(nextPrizeIndex, remainingPrizes);
+      // subtract any prizes that went unclaimed due to insufficient liquidity
+      tierPrizes = tierPrizes - drawTierInsufficientLiquidityPrizeCounts[drawId][tier];
 
       uint targetClaimCount;
       uint prizeSize = prizePool.getTierPrizeSize(tier);
@@ -121,12 +123,13 @@ contract ClaimerAgent is Utils {
       uint32 maxPrizesPerLiquidity = uint32(prizePool.getTierRemainingLiquidity(tier) / prizeSize);
 
       if (targetClaimCount > maxPrizesPerLiquidity) {
-        drawTierInsufficientLiquidityPrizeCounts[drawId][tier] +=
+        drawTierInsufficientLiquidityPrizeCounts[drawId][tier] =
           targetClaimCount -
           maxPrizesPerLiquidity;
-        console2.log("INSUFFICIENT LIQUIDITY: Draw id %s, tier %s, num missing %s ", drawId, tier, targetClaimCount - maxPrizesPerLiquidity);
-        console2.log("remaining liquidity", prizePool.getTierRemainingLiquidity(tier));
-        console2.log("prize size: ", prizeSize);
+        console2.log("-------- INSUFFICIENT LIQUIDITY: Draw id %s, tier %s", drawId, tier);
+        console2.log("-------- \tprize count %s, possible count %s, target count %s ", targetClaimCount, maxPrizesPerLiquidity, prizePool.getTierPrizeCount(tier));
+        console2.log("-------- \tremaining liquidity", prizePool.getTierRemainingLiquidity(tier));
+        console2.log("-------- \tprize size: ", prizeSize);
         targetClaimCount = maxPrizesPerLiquidity;
       }
 

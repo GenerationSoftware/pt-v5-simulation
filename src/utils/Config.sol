@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.19;
+pragma solidity ^0.8.19;
 
 import "forge-std/console2.sol";
 
@@ -54,7 +54,7 @@ struct DrawManagerConfig {
 // Gas configs
 struct GasConfig {
   uint256 startDrawCostInEth;
-  uint256 awardDrawCostInEth;
+  uint256 finishDrawCostInEth;
   uint256 claimCostInEth;
   uint256 liquidationCostInEth;
 }
@@ -106,6 +106,8 @@ contract Config is CommonBase {
     _prizePool.tierShares = vm.parseJsonUint(config, "$.prize_pool.tier_shares").toUint8();
     _prizePool.drawTimeout = vm.parseJsonUint(config, "$.prize_pool.draw_timeout").toUint24();
     _prizePool.tierLiquidityUtilizationRate = vm.parseJsonUint(config, "$.prize_pool.tier_liquidity_utilization_rate");
+
+    console2.log("???? Config.load _prizePool.tierLiquidityUtilizationRate: ", _prizePool.tierLiquidityUtilizationRate);
     
     _drawManager.auctionDuration = vm.parseJsonUint(config, "$.draw_manager.auction_duration").toUint64();
     _drawManager.auctionTargetTime = vm.parseJsonUint(config, "$.draw_manager.auction_target_time").toUint64();
@@ -120,7 +122,7 @@ contract Config is CommonBase {
     _claimer.maxFeePortionOfPrize = getClaimerMaxFeePortionOfPrize();
 
     _gas.startDrawCostInEth = vm.parseJsonUint(config, "$.gas.start_draw_cost_in_eth"); 
-    _gas.awardDrawCostInEth = vm.parseJsonUint(config, "$.gas.award_draw_cost_in_eth"); 
+    _gas.finishDrawCostInEth = vm.parseJsonUint(config, "$.gas.award_draw_cost_in_eth"); 
     _gas.claimCostInEth = vm.parseJsonUint(config, "$.gas.claim_cost_in_eth"); 
     _gas.liquidationCostInEth = vm.parseJsonUint(config, "$.gas.liquidation_cost_in_eth"); 
 

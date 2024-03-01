@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.19;
+pragma solidity ^0.8.19;
 
 import { CommonBase } from "forge-std/Base.sol";
 import { SD59x18, wrap, convert } from "prb-math/SD59x18.sol";

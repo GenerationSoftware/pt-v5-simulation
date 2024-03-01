@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.19;
+pragma solidity ^0.8.19;
 
 import { console2 } from "forge-std/console2.sol";
 
@@ -78,7 +78,7 @@ console2.log("SingleChain setUp 4");
     uint256 duration = (config.simulation().durationDraws+2) * config.prizePool().drawPeriodSeconds;
     for (uint256 i = startTime; i <= startTime + duration; i += config.simulation().timeStep) {
       vm.warp(i);
-      vm.roll(block.number + 1);
+      vm.roll(block.number + 2);
 
       // Let agents do their thing
       uint apr = env.updateApr();
@@ -195,7 +195,7 @@ console2.log("SingleChain setUp 4");
     console2.log("Average fee per claim (WETH): ", formatTokens(averageFeePerClaim, config.wethUsdValueOverTime().get(block.timestamp)));
     console2.log("");
     console2.log("Start draw cost (WETH): ", formatTokens(config.gas().startDrawCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
-    console2.log("Award draw cost (WETH): ", formatTokens(config.gas().awardDrawCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
+    console2.log("Award draw cost (WETH): ", formatTokens(config.gas().finishDrawCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
     console2.log("Claim cost (WETH): \t  ", formatTokens(config.gas().claimCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
     console2.log("Liq. cost (WETH): \t  ", formatTokens(config.gas().liquidationCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
   }

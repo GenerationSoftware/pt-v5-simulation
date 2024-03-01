@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.19;
+pragma solidity ^0.8.19;
 
 import "forge-std/console2.sol";
 
@@ -43,18 +43,18 @@ contract DrawAgent is StdCheats, Utils {
     return _drawDetails[drawId];
   }
 
-  function willAwardDraw() public view returns (bool) {
-    uint256 awardDrawCost = env.config().gas().awardDrawCostInEth;
-    uint256 minimumAwardDrawProfit = getMinimumProfit(awardDrawCost);
-    uint256 awardDrawProfit;
+  function willFinishDraw() public view returns (bool) {
+    uint256 finishDrawCost = env.config().gas().finishDrawCostInEth;
+    uint256 minimumFinishDrawProfit = getMinimumProfit(finishDrawCost);
+    uint256 finishDrawProfit;
 
-    if (env.drawManager().canAwardDraw()) {
+    if (env.drawManager().canFinishDraw()) {
       // console2.log("Draw CAN AWARD");
-      uint fee = env.drawManager().awardDrawFee();
-      // console2.log("Draw awardDraw fee %e", fee);
-      awardDrawProfit = fee < awardDrawCost ? 0 : fee - awardDrawCost;
-      // console2.log("awardDrawCost %e", awardDrawCost);
-      return awardDrawProfit >= minimumAwardDrawProfit;
+      uint fee = env.drawManager().finishDrawReward();
+      // console2.log("Draw finishDraw fee %e", fee);
+      finishDrawProfit = fee < finishDrawCost ? 0 : fee - finishDrawCost;
+      // console2.log("finishDrawCost %e", finishDrawCost);
+      return finishDrawProfit >= minimumFinishDrawProfit;
     }
 
     return false;
@@ -68,7 +68,7 @@ contract DrawAgent is StdCheats, Utils {
     uint24 drawId = prizePool.getDrawIdToAward();
 
     if (drawManager.canStartDraw()) {
-      uint fee = drawManager.startDrawFee();
+      uint fee = drawManager.startDrawReward();
       // console2.log("fee %e", fee);
       uint256 startDrawCost = env.config().gas().startDrawCostInEth;
       // console2.log("cost %e", startDrawCost);
@@ -82,11 +82,11 @@ contract DrawAgent is StdCheats, Utils {
     } else {
     }
 
-    if (willAwardDraw()) {
+    if (willFinishDraw()) {
       _drawDetails[drawId].numberOfTiers = prizePool.numberOfTiers();
-      _drawDetails[drawId].finishDrawReward = drawManager.awardDrawFee();
+      _drawDetails[drawId].finishDrawReward = drawManager.finishDrawReward();
       // console2.log("Awarding draw ", drawId);
-      drawManager.awardDraw(address(this));
+      drawManager.finishDraw(address(this));
       drawCount++;
       return true;
     }

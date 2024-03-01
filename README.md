@@ -4,6 +4,17 @@ This project simulates PoolTogether V5 in a configurable environment.
 
 ## Usage
 
+Run the environment scripts:
+
+```
+./scripts/optimism.sh
+./scripts/ethereum.sh
+```
+
+These scripts run the SingleChain test using the `config/optimism.json` and `config/ethereum.json` config files, respectively. They output to `config/output/optimism-output.csv` and `config/output/ethereum-output.csv`.
+
+### Configuration and Output
+
 The simulator is configured using JSON files in the config directory. The simulation outputs results to a CSV file.
 
 To run the simulation for a certain config and output:

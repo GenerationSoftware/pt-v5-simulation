@@ -5,7 +5,7 @@
         "tvl_usd": "10000000",
         "verbosity": "1",
         
-        "duration_draws": "5",
+        "duration_draws": "3",
         "apr_for_each_draw" : [
             "25000000000000000",
             "30000000000000000",
