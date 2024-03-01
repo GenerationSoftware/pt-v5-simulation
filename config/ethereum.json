@@ -42,7 +42,7 @@
     },
     
     "draw_manager": {
-        "auction_duration": "86400",
+        "auction_duration": "302400",
         "auction_target_time": "21600",
         "auction_max_reward": "10000000000000000000000",
         "first_auction_target_reward_fraction": "250000000000000000"
