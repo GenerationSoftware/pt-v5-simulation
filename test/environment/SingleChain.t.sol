@@ -293,28 +293,19 @@ console2.log("SingleChain setUp 4");
       decimalPart = string.concat("0", decimalPart);
     }
 
-    string memory usdCentsPart = "";
-    uint256 amountInUSD = uint256(convert(convert(int256(value)).mul(exchangeRate)));
-    uint256 usdWhole = amountInUSD / (1e2);
-    uint256 usdCentsWhole = amountInUSD % (1e2);
-    usdCentsPart = vm.toString(usdCentsWhole);
-
-    // show 2 decimals
-    while(bytes(usdCentsPart).length < 2) {
-      usdCentsPart = string.concat("0", usdCentsPart);
-    }
-
-    return string.concat(wholePart, ".", decimalPart, " ($", vm.toString(usdWhole), ".", usdCentsPart, ")");
+    return string.concat(wholePart, ".", decimalPart, " ($", formatUsd(value, exchangeRate), " USD)");
   }
 
   function formatUsd(uint256 tokens, SD59x18 usdPerToken) public view returns(string memory) {
     uint256 amountInUSD = uint256(convert(convert(int256(tokens)).mul(usdPerToken)));
-    uint256 usdWhole = amountInUSD / (1e2);
-    uint256 usdCentsWhole = amountInUSD % (1e2);
+
+    uint8 numberOfDecimals = 3;
+
+    uint256 usdWhole = amountInUSD / (10**numberOfDecimals);
+    uint256 usdCentsWhole = amountInUSD % (10**numberOfDecimals);
     string memory usdCentsPart = vm.toString(usdCentsWhole);
 
-    // show 2 decimals
-    while(bytes(usdCentsPart).length < 2) {
+    while(bytes(usdCentsPart).length < numberOfDecimals) {
       usdCentsPart = string.concat("0", usdCentsPart);
     }
 

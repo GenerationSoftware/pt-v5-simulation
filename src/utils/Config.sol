@@ -85,15 +85,17 @@ contract Config is CommonBase {
   function load(string memory filepath) public {
     string memory config = vm.readFile(filepath);
 
+    uint usdDecimals = 3;
+
     wethUsdValueOverTime = new SD59x18OverTime();
-    wethUsdValueOverTime.add(block.timestamp, convert(3000e2).div(convert(1e18))); // USD / WETH
+    wethUsdValueOverTime.add(block.timestamp, convert(int(3000 * 10**usdDecimals)).div(convert(1e18))); // USD / WETH
 
     poolUsdValueOverTime = new SD59x18OverTime();
-    poolUsdValueOverTime.add(block.timestamp, convert(1e2).div(convert(1e18))); // USD / POOL
+    poolUsdValueOverTime.add(block.timestamp, convert(int(10**usdDecimals)).div(convert(1e18))); // USD / POOL
 
     _simulation.numUsers = vm.parseJsonUint(config, "$.simulation.num_users");
     _simulation.timeStep = vm.parseJsonUint(config, "$.simulation.time_step");
-    _simulation.totalValueLocked = uint(convert(convert(int(vm.parseJsonUint(config, "$.simulation.tvl_usd"))).mul(convert(1e2)).div(poolUsdValueOverTime.get(block.timestamp))));
+    _simulation.totalValueLocked = uint(convert(convert(int(vm.parseJsonUint(config, "$.simulation.tvl_usd"))).mul(convert(int(10**usdDecimals))).div(poolUsdValueOverTime.get(block.timestamp))));
     _simulation.verbosity = vm.parseJsonUint(config, "$.simulation.verbosity");
     _simulation.durationDraws = vm.parseJsonUint(config, "$.simulation.duration_draws");
     
