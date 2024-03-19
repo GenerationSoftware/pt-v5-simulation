@@ -52,22 +52,16 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   mapping(uint24 drawId => DrawLog) public drawLogs;
 
   function setUp() public {
-    console2.log("SingleChain setUp 1");
     startTime = block.timestamp + 10000 days;
     vm.warp(startTime);
     config = new Config();
     config.load(vm.envString("CONFIG"));
-    console2.log("SingleChain setUp 2");
     logger = new Logger(vm.envString("OUTPUT"));
 
     initOutputFileCsv(simulatorCsvFile, simulatorCsvColumns);
 
-    console2.log("SingleChain setUp 3");
-
     env = new SingleChainEnvironment(config);
-console2.log("SingleChain setUp 4");
     claimerAgent = new ClaimerAgent(env);
-    console2.log("SingleChain setUp 5");
     drawAgent = new DrawAgent(env);
     liquidatorAgent = new LiquidatorAgent(env);
   }
@@ -81,9 +75,11 @@ console2.log("SingleChain setUp 4");
       vm.roll(block.number + 2);
 
       // Let agents do their thing
+      uint yield = env.mintYield();
       uint apr = env.updateApr();
       liquidatorAgent.check(config.wethUsdValueOverTime().get(block.timestamp), config.poolUsdValueOverTime().get(block.timestamp));
-      
+
+      uint24 openDrawId = env.prizePool().getOpenDrawId();
       uint24 finalizedDrawId = env.prizePool().getLastAwardedDrawId();
       DrawLog memory finalizedDrawLog = drawLogs[finalizedDrawId];
       finalizedDrawLog.apr = apr;
@@ -95,6 +91,8 @@ console2.log("SingleChain setUp 4");
         closedDrawLog.numberOfTiers = closedDrawDetail.numberOfTiers;
         closedDrawLog.startDrawReward = closedDrawDetail.startDrawReward;
         closedDrawLog.finishDrawReward = closedDrawDetail.finishDrawReward;
+        closedDrawLog.totalYieldUsd = formatUsd(liquidatorAgent.totalAmountOutPerDraw(closedDrawId), config.poolUsdValueOverTime().get(block.timestamp));
+        closedDrawLog.totalLiquidatedUsd = formatUsd(liquidatorAgent.totalAmountInPerDraw(closedDrawId), config.wethUsdValueOverTime().get(block.timestamp));
         closedDrawLog.burnedPool = liquidatorAgent.totalBurnedPoolPerDraw(closedDrawId);
 
         {

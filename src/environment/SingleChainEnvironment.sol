@@ -23,8 +23,10 @@ import { Claimer } from "pt-v5-claimer/Claimer.sol";
 import { ILiquidationSource } from "pt-v5-liquidator-interfaces/ILiquidationSource.sol";
 import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.sol";
 
-import { LiquidationPairFactory } from "pt-v5-cgda-liquidator/LiquidationPairFactory.sol";
-import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
+// import { LiquidationPairFactory } from "pt-v5-cgda-liquidator/LiquidationPairFactory.sol";
+// import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
+import { FixedLiquidationPairFactory } from "fixed-liquidator/FixedLiquidationPairFactory.sol";
+import { FixedLiquidationRouter } from "fixed-liquidator/FixedLiquidationRouter.sol";
 
 import { YieldVaultMintRate } from "../YieldVaultMintRate.sol";
 
@@ -55,7 +57,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
   YieldVaultMintRate public yieldVault;
   ILiquidationPair public pair;
   Claimer public claimer;
-  LiquidationRouter public router;
+  FixedLiquidationRouter public router;
   FeeBurner public feeBurner;
   ILiquidationPair public feeBurnerPair;
 
@@ -162,10 +164,10 @@ contract SingleChainEnvironment is Utils, StdCheats {
     SD59x18 wethUsdValue = config.wethUsdValueOverTime().get(block.timestamp);
     SD59x18 poolUsdValue = config.poolUsdValueOverTime().get(block.timestamp);
 
-    LiquidationPairFactory pairFactory = new LiquidationPairFactory();
-    vm.label(address(pairFactory), "LiquidationPairFactory");
-    LiquidationRouter cgdaRouter = new LiquidationRouter(pairFactory);
-    vm.label(address(cgdaRouter), "LiquidationRouter");
+    FixedLiquidationPairFactory pairFactory = new FixedLiquidationPairFactory();
+    vm.label(address(pairFactory), "FixedLiquidationPairFactory");
+    FixedLiquidationRouter fixedRouter = new FixedLiquidationRouter(pairFactory);
+    vm.label(address(fixedRouter), "FixedLiquidationRouter");
     // console2.log(
     //   "initializeCgdaLiquidator _liquidatorConfig.exchangeRatePrizeTokenToUnderlying",
     //   _liquidatorConfig.exchangeRatePrizeTokenToUnderlying.unwrap()
@@ -187,19 +189,14 @@ contract SingleChainEnvironment is Utils, StdCheats {
           ILiquidationSource(address(vault)),
           address(prizeToken),
           address(vault),
-          config.prizePool().drawPeriodSeconds,
-          uint32(config.prizePool().firstDrawOpensAt),
-          config.getTargetFirstSaleTime(),
-          config.getDecayConstant(),
-          wethAmount, // weth is token in
-          poolAmount, // pool is token out
-          1e18 // min is 1 pool being sold
+          config.prizePool().drawPeriodSeconds / 3,
+          0.001e18
         )
       )
     );
     vm.label(address(pair), "VaultLiquidationPair");
 
-    router = LiquidationRouter(address(cgdaRouter));
+    router = FixedLiquidationRouter(address(fixedRouter));
     vault.setLiquidationPair(address(pair));
 
     feeBurnerPair = ILiquidationPair(
@@ -208,13 +205,8 @@ contract SingleChainEnvironment is Utils, StdCheats {
           ILiquidationSource(address(feeBurner)),
           address(poolToken),
           address(prizeToken),
-          config.prizePool().drawPeriodSeconds,
-          uint32(config.prizePool().firstDrawOpensAt),
-          config.getTargetFirstSaleTime(),
-          config.getDecayConstant(),
-          poolAmount, // pool is token in (burn)
-          wethAmount, // weth is token out
-          wethAmount // 1 pool worth of weth being sold
+          config.prizePool().drawPeriodSeconds / 3,
+          1e18 // 1 pool being sold
         )
       )
     );

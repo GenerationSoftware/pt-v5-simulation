@@ -12,6 +12,8 @@ struct DrawLog {
     uint256 finishDrawReward;
     uint256 burnedPool;
     uint256 apr;
+    string totalYieldUsd;
+    string totalLiquidatedUsd;
     uint256[11] tierLiquidityRemaining;
     uint256[11] tierPrizeSizes;
     string[11] tierPrizeSizesUsd;
@@ -25,24 +27,26 @@ contract Logger is CommonBase {
 
     constructor(string memory _outputFilepath) {
         outputFilepath = _outputFilepath;
-        vm.writeLine(outputFilepath, "Draw id, Number of Tiers, apr, POOL Burned, Start Draw Reward, Finish Draw Reward, tier1LiquidityRemaining, tier2LiquidityRemaining, tier3LiquidityRemaining, tier4LiquidityRemaining, tier5LiquidityRemaining, tier6LiquidityRemaining, tier7LiquidityRemaining, tier8LiquidityRemaining, tier9LiquidityRemaining, tier10LiquidityRemaining, tier11LiquidityRemaining, tier1PrizeSizes, tier2PrizeSizes, tier3PrizeSizes, tier4PrizeSizes, tier5PrizeSizes, tier6PrizeSizes, tier7PrizeSizes, tier8PrizeSizes, tier9PrizeSizes, tier10PrizeSizes, tier11PrizeSizes, tier1PrizeSizesUsd, tier2PrizeSizesUsd, tier3PrizeSizesUsd, tier4PrizeSizesUsd, tier5PrizeSizesUsd, tier6PrizeSizesUsd, tier7PrizeSizesUsd, tier8PrizeSizesUsd, tier9PrizeSizesUsd, tier10PrizeSizesUsd, tier11PrizeSizesUsd, tier1ClaimedPrizes, tier2ClaimedPrizes, tier3ClaimedPrizes, tier4ClaimedPrizes, tier5ClaimedPrizes, tier6ClaimedPrizes, tier7ClaimedPrizes, tier8ClaimedPrizes, tier9ClaimedPrizes, tier10ClaimedPrizes, tier11ClaimedPrizes, tier1ComputedPrizes, tier2ComputedPrizes, tier3ComputedPrizes, tier4ComputedPrizes, tier5ComputedPrizes, tier6ComputedPrizes, tier7ComputedPrizes, tier8ComputedPrizes, tier9ComputedPrizes, tier10ComputedPrizes, tier11ComputedPrizes");
+        vm.writeLine(outputFilepath, "Draw id, Number of Tiers, apr, Total Yield, Total Liquidations, POOL Burned, Start Draw Reward, Finish Draw Reward, tier1LiquidityRemaining, tier2LiquidityRemaining, tier3LiquidityRemaining, tier4LiquidityRemaining, tier5LiquidityRemaining, tier6LiquidityRemaining, tier7LiquidityRemaining, tier8LiquidityRemaining, tier9LiquidityRemaining, tier10LiquidityRemaining, tier11LiquidityRemaining, tier1PrizeSizes, tier2PrizeSizes, tier3PrizeSizes, tier4PrizeSizes, tier5PrizeSizes, tier6PrizeSizes, tier7PrizeSizes, tier8PrizeSizes, tier9PrizeSizes, tier10PrizeSizes, tier11PrizeSizes, tier1PrizeSizesUsd, tier2PrizeSizesUsd, tier3PrizeSizesUsd, tier4PrizeSizesUsd, tier5PrizeSizesUsd, tier6PrizeSizesUsd, tier7PrizeSizesUsd, tier8PrizeSizesUsd, tier9PrizeSizesUsd, tier10PrizeSizesUsd, tier11PrizeSizesUsd, tier1ClaimedPrizes, tier2ClaimedPrizes, tier3ClaimedPrizes, tier4ClaimedPrizes, tier5ClaimedPrizes, tier6ClaimedPrizes, tier7ClaimedPrizes, tier8ClaimedPrizes, tier9ClaimedPrizes, tier10ClaimedPrizes, tier11ClaimedPrizes, tier1ComputedPrizes, tier2ComputedPrizes, tier3ComputedPrizes, tier4ComputedPrizes, tier5ComputedPrizes, tier6ComputedPrizes, tier7ComputedPrizes, tier8ComputedPrizes, tier9ComputedPrizes, tier10ComputedPrizes, tier11ComputedPrizes");
     }
 
     function log(DrawLog memory _log) public {
-        uint8 size = 61;
+        uint8 size = 63;
         string[] memory data = new string[](size);
         data[0] = vm.toString(_log.drawId);
         data[1] = vm.toString(_log.numberOfTiers);
         data[2] = vm.toString(_log.apr);
-        data[3] = vm.toString(_log.burnedPool);
-        data[4] = vm.toString(_log.startDrawReward);
-        data[5] = vm.toString(_log.finishDrawReward);
+        data[3] = _log.totalYieldUsd;
+        data[4] = _log.totalLiquidatedUsd;
+        data[5] = vm.toString(_log.burnedPool);
+        data[6] = vm.toString(_log.startDrawReward);
+        data[7] = vm.toString(_log.finishDrawReward);
         for (uint8 i = 0; i < 11; i++) {
-            data[i + 6] = vm.toString(_log.tierLiquidityRemaining[i]);
-            data[i + 17] = vm.toString(_log.tierPrizeSizes[i]);
-            data[i + 28] = _log.tierPrizeSizesUsd[i];
-            data[i + 39] = vm.toString(_log.claimedPrizes[i]);
-            data[i + 50] = vm.toString(_log.computedPrizes[i]);
+            data[i + 8] = vm.toString(_log.tierLiquidityRemaining[i]);
+            data[i + 19] = vm.toString(_log.tierPrizeSizes[i]);
+            data[i + 30] = _log.tierPrizeSizesUsd[i];
+            data[i + 41] = vm.toString(_log.claimedPrizes[i]);
+            data[i + 52] = vm.toString(_log.computedPrizes[i]);
         }
 
         string memory result = data[0];
