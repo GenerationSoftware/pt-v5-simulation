@@ -190,7 +190,8 @@ contract SingleChainEnvironment is Utils, StdCheats {
           address(prizeToken),
           address(vault),
           config.prizePool().drawPeriodSeconds / 3,
-          0.001e18
+          0.001e18,
+          0 // no smoothing
         )
       )
     );
@@ -206,7 +207,8 @@ contract SingleChainEnvironment is Utils, StdCheats {
           address(poolToken),
           address(prizeToken),
           config.prizePool().drawPeriodSeconds / 3,
-          1e18 // 1 pool being sold
+          1e18, // 1 POOL,
+          0.95e18 // very high smoothing
         )
       )
     );

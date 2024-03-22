@@ -34,6 +34,8 @@ contract LiquidatorAgent is Utils {
   mapping(uint24 drawId => uint256 totalBurnedPool) public totalBurnedPoolPerDraw;
   mapping(uint24 drawId => uint256 amountIn) public totalAmountInPerDraw;
   mapping(uint24 drawId => uint256 amountOut) public totalAmountOutPerDraw;
+  mapping(uint24 drawId => uint256 amountIn) public feeBurnerAmountInPerDraw;
+  mapping(uint24 drawId => uint256 amountOut) public feeBurnerAmountOutPerDraw;
 
   constructor(SingleChainEnvironment _env) {
     env = _env;
@@ -55,11 +57,11 @@ contract LiquidatorAgent is Utils {
     if (profit.gt(wrap(0))) {
       totalAmountInPerDraw[openDrawId] += amountIn;
       totalAmountOutPerDraw[openDrawId] += amountOut;
-      // console2.log("draw %s: liquidating %s for %s ", openDrawId, amountOut, amountIn);
     }
     (amountOut, amountIn, profit) = checkLiquidationPair(poolUsdValue, wethUsdValue, wethUsdValue, env.feeBurnerPair());
     if (profit.gt(wrap(0))) {
-      totalBurnedPoolPerDraw[openDrawId] += amountIn;
+      feeBurnerAmountInPerDraw[openDrawId] += amountIn;
+      feeBurnerAmountOutPerDraw[openDrawId] += amountOut;
     }
   }
 

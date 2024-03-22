@@ -109,8 +109,6 @@ contract Config is CommonBase {
     _prizePool.drawTimeout = vm.parseJsonUint(config, "$.prize_pool.draw_timeout").toUint24();
     _prizePool.tierLiquidityUtilizationRate = vm.parseJsonUint(config, "$.prize_pool.tier_liquidity_utilization_rate");
 
-    console2.log("???? Config.load _prizePool.tierLiquidityUtilizationRate: ", _prizePool.tierLiquidityUtilizationRate);
-    
     _drawManager.auctionDuration = vm.parseJsonUint(config, "$.draw_manager.auction_duration").toUint64();
     _drawManager.auctionTargetTime = vm.parseJsonUint(config, "$.draw_manager.auction_target_time").toUint64();
     _drawManager.auctionMaxReward = vm.parseJsonUint(config, "$.draw_manager.auction_max_reward");

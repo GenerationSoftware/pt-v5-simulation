@@ -91,9 +91,11 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
         closedDrawLog.numberOfTiers = closedDrawDetail.numberOfTiers;
         closedDrawLog.startDrawReward = closedDrawDetail.startDrawReward;
         closedDrawLog.finishDrawReward = closedDrawDetail.finishDrawReward;
-        closedDrawLog.totalYieldUsd = formatUsd(liquidatorAgent.totalAmountOutPerDraw(closedDrawId), config.poolUsdValueOverTime().get(block.timestamp));
-        closedDrawLog.totalLiquidatedUsd = formatUsd(liquidatorAgent.totalAmountInPerDraw(closedDrawId), config.wethUsdValueOverTime().get(block.timestamp));
-        closedDrawLog.burnedPool = liquidatorAgent.totalBurnedPoolPerDraw(closedDrawId);
+        closedDrawLog.totalLiquidationAmountOutUsd = formatUsd(liquidatorAgent.totalAmountOutPerDraw(closedDrawId), config.poolUsdValueOverTime().get(block.timestamp));
+        closedDrawLog.totalLiquidationAmountInUsd = formatUsd(liquidatorAgent.totalAmountInPerDraw(closedDrawId), config.wethUsdValueOverTime().get(block.timestamp));
+        closedDrawLog.reserveLiquidationAmountInUsd = formatUsd(liquidatorAgent.feeBurnerAmountInPerDraw(closedDrawId), config.poolUsdValueOverTime().get(block.timestamp));
+        closedDrawLog.reserveLiquidationAmountOutUsd = formatUsd(liquidatorAgent.feeBurnerAmountOutPerDraw(closedDrawId), config.wethUsdValueOverTime().get(block.timestamp));
+        closedDrawLog.burnedPool = liquidatorAgent.feeBurnerAmountInPerDraw(closedDrawId);
 
         {
           for (uint8 t = 0; t < closedDrawLog.numberOfTiers; t++) {
