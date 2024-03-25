@@ -1,43 +1,17 @@
 {
     "simulation": {
         "num_users": "2",
-        "time_step": "300",
-        "tvl_usd": "1000000",
+        "time_step": "1800",
+        "tvl_usd": "5000000",
         "verbosity": "1",
+        "duration_draws": "6",
+
+        "eth_price_usd_per_draw" : [
+            "30"
+        ],
         
-        "duration_draws": "30",
         "apr_for_each_draw" : [
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "0",
-            "50000000000000000",
-            "200000000000000000",
-            "100000000000000000",
-            "10000000000000000"
+            "30000000000000000"
         ]
     },
     
@@ -64,14 +38,14 @@
     },
     
     "claimer": {
-        "claimer_min_fee": "100000000000",
-        "claimer_max_fee": "1000000000000000000"
+        "claimer_min_fee": "100",
+        "claimer_max_fee": "10000000"
     },
     
     "gas": {
-        "start_draw_cost_in_eth":   "3500000000000",
-        "award_draw_cost_in_eth":   "3500000000000",
-        "claim_cost_in_eth":        "1000000000000",
-        "liquidation_cost_in_eth":  "3500000000000"
+        "start_draw_cost_in_usd":   "10",
+        "award_draw_cost_in_usd":   "10",
+        "claim_cost_in_usd":        "10",
+        "liquidation_cost_in_usd":  "10"
     }
 }

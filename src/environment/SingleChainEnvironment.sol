@@ -137,6 +137,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
       claimerConfig.maxFeePortionOfPrize
     );
 
+    console2.log("Claimer DecayConstant ", claimer.decayConstant().unwrap());
     // console2.log("SingleChainEnvironment constructor 6");
 
     underlyingToken.mint(address(this), vaultFactory.YIELD_BUFFER());
@@ -190,7 +191,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
           address(prizeToken),
           address(vault),
           config.prizePool().drawPeriodSeconds / 3,
-          0.001e18,
+          0.00001e18,
           0 // no smoothing
         )
       )

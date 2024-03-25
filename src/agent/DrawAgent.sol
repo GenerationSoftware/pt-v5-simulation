@@ -44,7 +44,7 @@ contract DrawAgent is StdCheats, Utils {
   }
 
   function willFinishDraw() public view returns (bool) {
-    uint256 finishDrawCost = env.config().gas().finishDrawCostInEth;
+    uint256 finishDrawCost = env.config().usdToWeth(env.config().gas().finishDrawCostInUsd);
     uint256 minimumFinishDrawProfit = getMinimumProfit(finishDrawCost);
     uint256 finishDrawProfit;
 
@@ -69,9 +69,7 @@ contract DrawAgent is StdCheats, Utils {
 
     if (drawManager.canStartDraw()) {
       uint fee = drawManager.startDrawReward();
-      // console2.log("fee %e", fee);
-      uint256 startDrawCost = env.config().gas().startDrawCostInEth;
-      // console2.log("cost %e", startDrawCost);
+      uint256 startDrawCost = env.config().usdToWeth(env.config().gas().startDrawCostInUsd);
       uint256 startDrawProfit = fee < startDrawCost ? 0 : fee - startDrawCost;
       if (startDrawProfit >= getMinimumProfit(startDrawCost)) {
         // console2.log("started draw", drawId);

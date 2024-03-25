@@ -52,10 +52,6 @@ contract Utils is CommonBase {
   //   }
   // }
 
-  function computeGasCostInUsd(SD59x18 ethValueUsd, uint256 gasCostInEth) public view returns (SD59x18) {
-    return ethValueUsd.mul(convert(int(gasCostInEth)));
-  }
-
   // Logging
   // Clears and logs the CSV headers to the file
   function initOutputFileCsv(string memory csvFile, string memory csvColumns) public {

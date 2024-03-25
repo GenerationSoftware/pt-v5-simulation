@@ -21,7 +21,7 @@ import { StdCheats } from "forge-std/StdCheats.sol";
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
-import { Config } from "../../src/utils/Config.sol";
+import { Config, USD_DECIMALS } from "../../src/utils/Config.sol";
 import { Utils } from "../../src/utils/Utils.sol";
 
 import { DrawLog, Logger } from "../../src/utils/Logger.sol";
@@ -194,10 +194,10 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
     console2.log("");
     console2.log("Average fee per claim (WETH): ", formatTokens(averageFeePerClaim, config.wethUsdValueOverTime().get(block.timestamp)));
     console2.log("");
-    console2.log("Start draw cost (WETH): ", formatTokens(config.gas().startDrawCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
-    console2.log("Award draw cost (WETH): ", formatTokens(config.gas().finishDrawCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
-    console2.log("Claim cost (WETH): \t  ", formatTokens(config.gas().claimCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
-    console2.log("Liq. cost (WETH): \t  ", formatTokens(config.gas().liquidationCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
+    console2.log("Start draw cost (USD): ", formatUsd(config.gas().startDrawCostInUsd));
+    console2.log("Award draw cost (USD): ", formatUsd(config.gas().finishDrawCostInUsd));
+    console2.log("Claim cost (USD): \t  ", formatUsd(config.gas().claimCostInUsd));
+    console2.log("Liq. cost (USD): \t  ", formatUsd(config.gas().liquidationCostInUsd));
   }
 
   function printPrizeSummary() public view {
@@ -293,25 +293,24 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
       decimalPart = string.concat("0", decimalPart);
     }
 
-    return string.concat(wholePart, ".", decimalPart, " ($", formatUsd(value, exchangeRate), " USD)");
+    return string.concat(wholePart, ".", decimalPart, " (", formatUsd(value, exchangeRate), ")");
   }
 
   function formatUsd(uint256 tokens, SD59x18 usdPerToken) public view returns(string memory) {
     uint256 amountInUSD = uint256(convert(convert(int256(tokens)).mul(usdPerToken)));
+    return formatUsd(amountInUSD);
+  }
 
-    uint8 numberOfDecimals = 3;
-
-    uint256 usdWhole = amountInUSD / (10**numberOfDecimals);
-    uint256 usdCentsWhole = amountInUSD % (10**numberOfDecimals);
+  function formatUsd(uint256 amountInUSD) public view returns(string memory) {
+    uint256 usdWhole = amountInUSD / (10**USD_DECIMALS);
+    uint256 usdCentsWhole = amountInUSD % (10**USD_DECIMALS);
     string memory usdCentsPart = vm.toString(usdCentsWhole);
 
-    while(bytes(usdCentsPart).length < numberOfDecimals) {
+    while(bytes(usdCentsPart).length < USD_DECIMALS) {
       usdCentsPart = string.concat("0", usdCentsPart);
     }
 
-    return string.concat(vm.toString(usdWhole), ".", usdCentsPart);
+    return string.concat("$", vm.toString(usdWhole), ".", usdCentsPart, " USD");
   }
-
-
 
 }

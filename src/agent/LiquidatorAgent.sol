@@ -154,7 +154,8 @@ contract LiquidatorAgent is Utils {
     if (amountIn > 57896044618658097711785492504343953926634992332820282019728) {
       return wrap(0);
     }
-    SD59x18 cost = tokenInValueUsd.mul(convert(int256(amountIn))).add(computeGasCostInUsd(ethValueUsd, env.config().gas().liquidationCostInEth));
+    SD59x18 capitalCost = tokenInValueUsd.mul(convert(int256(amountIn)));//.add(convert(int256(env.config().gas().liquidationCostInUsd)));
+    SD59x18 cost = capitalCost.add(convert(int256(env.config().gas().liquidationCostInUsd)));
     return cost.lt(amountOutInUsd) ? amountOutInUsd.sub(cost) : wrap(0);
   } 
 
