@@ -54,3 +54,6 @@
 [submodule "lib/pt-v5-prize-pool-fee-burner"]
 	path = lib/pt-v5-prize-pool-fee-burner
 	url = https://github.com/GenerationSoftware/pt-v5-prize-pool-fee-burner
+[submodule "lib/fixed-liquidator"]
+	path = lib/fixed-liquidator
+	url = https://github.com/generationsoftware/fixed-liquidator

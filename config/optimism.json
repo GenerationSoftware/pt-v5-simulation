@@ -1,32 +1,17 @@
 {
     "simulation": {
-        "num_users": "128",
+        "num_users": "2",
         "time_step": "1800",
-        "tvl_usd": "10000000",
+        "tvl_usd": "5000000",
         "verbosity": "1",
+        "duration_draws": "6",
+
+        "eth_price_usd_per_draw" : [
+            "30"
+        ],
         
-        "duration_draws": "5",
         "apr_for_each_draw" : [
-            "25000000000000000",
-            "30000000000000000",
-            "35000000000000000",
-            "40000000000000000",
-            "45000000000000000",
-            "50000000000000000",
-            "55000000000000000",
-            "60000000000000000",
-            "65000000000000000",
-            "70000000000000000",
-            "60000000000000000",
-            "50000000000000000",
-            "30000000000000000",
-            "20000000000000000",
-            "10000000000000000",
-            "10000000000000000",
-            "10000000000000000",
-            "10000000000000000",
-            "10000000000000000",
-            "10000000000000000"
+            "30000000000000000"
         ]
     },
     
@@ -35,9 +20,9 @@
         "draw_timeout": "30",
         "grand_prize_period_draws": "365",
         "number_of_tiers": "4",
-        "tier_shares": "100",
+        "tier_shares": "200",
         "canary_shares": "5",
-        "reserve_shares": "20",
+        "reserve_shares": "40",
         "tier_liquidity_utilization_rate": "500000000000000000"
     },
     
@@ -53,14 +38,14 @@
     },
     
     "claimer": {
-        "claimer_min_fee": "100000000000",
-        "claimer_max_fee": "1000000000000000000"
+        "claimer_min_fee": "100",
+        "claimer_max_fee": "10000000"
     },
     
     "gas": {
-        "start_draw_cost_in_eth": "40000000000000",
-        "award_draw_cost_in_eth": "100000000000000",
-        "claim_cost_in_eth": "60000000000000",
-        "liquidation_cost_in_eth": "100000000000000"
+        "start_draw_cost_in_usd":   "10",
+        "award_draw_cost_in_usd":   "10",
+        "claim_cost_in_usd":        "10",
+        "liquidation_cost_in_usd":  "10"
     }
 }

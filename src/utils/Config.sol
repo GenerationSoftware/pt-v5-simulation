@@ -53,11 +53,13 @@ struct DrawManagerConfig {
 
 // Gas configs
 struct GasConfig {
-  uint256 startDrawCostInEth;
-  uint256 finishDrawCostInEth;
-  uint256 claimCostInEth;
-  uint256 liquidationCostInEth;
+  uint256 startDrawCostInUsd;
+  uint256 finishDrawCostInUsd;
+  uint256 claimCostInUsd;
+  uint256 liquidationCostInUsd;
 }
+
+uint constant USD_DECIMALS = 3;
 
 contract Config is CommonBase {
   using SafeCast for uint256;
@@ -85,15 +87,12 @@ contract Config is CommonBase {
   function load(string memory filepath) public {
     string memory config = vm.readFile(filepath);
 
-    wethUsdValueOverTime = new SD59x18OverTime();
-    wethUsdValueOverTime.add(block.timestamp, convert(3000e2).div(convert(1e18))); // USD / WETH
-
     poolUsdValueOverTime = new SD59x18OverTime();
-    poolUsdValueOverTime.add(block.timestamp, convert(1e2).div(convert(1e18))); // USD / POOL
+    poolUsdValueOverTime.add(block.timestamp, convert(int(10**USD_DECIMALS)).div(convert(1e18))); // USD / POOL
 
     _simulation.numUsers = vm.parseJsonUint(config, "$.simulation.num_users");
     _simulation.timeStep = vm.parseJsonUint(config, "$.simulation.time_step");
-    _simulation.totalValueLocked = uint(convert(convert(int(vm.parseJsonUint(config, "$.simulation.tvl_usd"))).mul(convert(1e2)).div(poolUsdValueOverTime.get(block.timestamp))));
+    _simulation.totalValueLocked = uint(convert(convert(int(vm.parseJsonUint(config, "$.simulation.tvl_usd"))).mul(convert(int(10**USD_DECIMALS))).div(poolUsdValueOverTime.get(block.timestamp))));
     _simulation.verbosity = vm.parseJsonUint(config, "$.simulation.verbosity");
     _simulation.durationDraws = vm.parseJsonUint(config, "$.simulation.duration_draws");
     
@@ -107,8 +106,6 @@ contract Config is CommonBase {
     _prizePool.drawTimeout = vm.parseJsonUint(config, "$.prize_pool.draw_timeout").toUint24();
     _prizePool.tierLiquidityUtilizationRate = vm.parseJsonUint(config, "$.prize_pool.tier_liquidity_utilization_rate");
 
-    console2.log("???? Config.load _prizePool.tierLiquidityUtilizationRate: ", _prizePool.tierLiquidityUtilizationRate);
-    
     _drawManager.auctionDuration = vm.parseJsonUint(config, "$.draw_manager.auction_duration").toUint64();
     _drawManager.auctionTargetTime = vm.parseJsonUint(config, "$.draw_manager.auction_target_time").toUint64();
     _drawManager.auctionMaxReward = vm.parseJsonUint(config, "$.draw_manager.auction_max_reward");
@@ -121,10 +118,21 @@ contract Config is CommonBase {
     _claimer.timeToReachMaxFee = getClaimerTimeToReachMaxFee();
     _claimer.maxFeePortionOfPrize = getClaimerMaxFeePortionOfPrize();
 
-    _gas.startDrawCostInEth = vm.parseJsonUint(config, "$.gas.start_draw_cost_in_eth"); 
-    _gas.finishDrawCostInEth = vm.parseJsonUint(config, "$.gas.award_draw_cost_in_eth"); 
-    _gas.claimCostInEth = vm.parseJsonUint(config, "$.gas.claim_cost_in_eth"); 
-    _gas.liquidationCostInEth = vm.parseJsonUint(config, "$.gas.liquidation_cost_in_eth"); 
+    _gas.startDrawCostInUsd = vm.parseJsonUint(config, "$.gas.start_draw_cost_in_usd"); 
+    _gas.finishDrawCostInUsd = vm.parseJsonUint(config, "$.gas.award_draw_cost_in_usd"); 
+    _gas.claimCostInUsd = vm.parseJsonUint(config, "$.gas.claim_cost_in_usd"); 
+    _gas.liquidationCostInUsd = vm.parseJsonUint(config, "$.gas.liquidation_cost_in_usd"); 
+
+    wethUsdValueOverTime = new SD59x18OverTime();
+    uint[] memory ethPrices = vm.parseJsonUintArray(config, "$.simulation.eth_price_usd_per_draw");
+    if (ethPrices.length > 0) {
+      for (uint i = 0; i < ethPrices.length; i++) {
+        wethUsdValueOverTime.add(
+          block.timestamp + (i * _prizePool.drawPeriodSeconds),
+          convert(int(ethPrices[i] * 10**USD_DECIMALS)).div(convert(1e18))
+        );
+      }
+    }
 
     aprOverTime = new UintOverTime();
     uint[] memory aprs = vm.parseJsonUintArray(config, "$.simulation.apr_for_each_draw");
@@ -134,6 +142,12 @@ contract Config is CommonBase {
       }
     }
 
+  }
+
+  /// @notice Convert USD to WETH.  NOTE: USD must be fixed point USD decimals
+  /// @dev see USD_DECIMALS above
+  function usdToWeth(uint usdFixedPointDecimals) public view returns (uint256) {
+    return uint256(convert(convert(int(usdFixedPointDecimals)).div(wethUsdValueOverTime.get(block.timestamp))));
   }
 
   /**

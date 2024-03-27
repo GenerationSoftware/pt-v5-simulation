@@ -92,7 +92,7 @@ contract ClaimerAgent is Utils {
         // see if any are worth claiming
         {
           uint claimFees = claimer.computeTotalFees(tier, tierPrizes);
-          uint cost = tierPrizes * env.config().gas().claimCostInEth;
+          uint cost = env.config().usdToWeth(tierPrizes * env.config().gas().claimCostInUsd);
           if (isLogging(3)) {
             console2.log(
               "\tclaimFees for drawId %s tier %s with prize size %e:",
@@ -312,7 +312,7 @@ contract ClaimerAgent is Utils {
     if (isLogging(2)) {
       console2.log(
         "+++++++++++++++++++++ Prize Claim Cost:",
-        env.config().gas().claimCostInEth
+        env.config().gas().claimCostInUsd
       );
       console2.log(
         "+++++++++++++++++++++ Draw",

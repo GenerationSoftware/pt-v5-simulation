@@ -7,8 +7,8 @@ import { SD59x18, wrap, convert, uMAX_SD59x18 } from "prb-math/SD59x18.sol";
 
 import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.sol";
-import { LiquidationPair } from "pt-v5-cgda-liquidator/LiquidationPair.sol";
-import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
+import { FixedLiquidationPair } from "fixed-liquidator/FixedLiquidationPair.sol";
+import { FixedLiquidationRouter } from "fixed-liquidator/FixedLiquidationRouter.sol";
 import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
 
 import { SingleChainEnvironment } from "../environment/SingleChainEnvironment.sol";
@@ -25,13 +25,17 @@ contract LiquidatorAgent is Utils {
 
   PrizePool public prizePool;
   ERC20PermitMock public prizeToken;
-  LiquidationRouter public router;
+  FixedLiquidationRouter public router;
 
   string liquidatorCsv;
 
   uint public burnedPool;
 
   mapping(uint24 drawId => uint256 totalBurnedPool) public totalBurnedPoolPerDraw;
+  mapping(uint24 drawId => uint256 amountIn) public totalAmountInPerDraw;
+  mapping(uint24 drawId => uint256 amountOut) public totalAmountOutPerDraw;
+  mapping(uint24 drawId => uint256 amountIn) public feeBurnerAmountInPerDraw;
+  mapping(uint24 drawId => uint256 amountOut) public feeBurnerAmountOutPerDraw;
 
   constructor(SingleChainEnvironment _env) {
     env = _env;
@@ -51,11 +55,13 @@ contract LiquidatorAgent is Utils {
     uint24 openDrawId = prizePool.getOpenDrawId();
     (amountOut, amountIn, profit) = checkLiquidationPair(wethUsdValue, poolUsdValue, wethUsdValue, env.pair());
     if (profit.gt(wrap(0))) {
-      // console2.log("draw %s: liquidating %s for %s ", openDrawId, amountOut, amountIn);
+      totalAmountInPerDraw[openDrawId] += amountIn;
+      totalAmountOutPerDraw[openDrawId] += amountOut;
     }
     (amountOut, amountIn, profit) = checkLiquidationPair(poolUsdValue, wethUsdValue, wethUsdValue, env.feeBurnerPair());
     if (profit.gt(wrap(0))) {
-      totalBurnedPoolPerDraw[openDrawId] += amountIn;
+      feeBurnerAmountInPerDraw[openDrawId] += amountIn;
+      feeBurnerAmountOutPerDraw[openDrawId] += amountOut;
     }
   }
 
@@ -65,7 +71,6 @@ contract LiquidatorAgent is Utils {
     (amountOut, amountIn, profit) = _findBestProfit(tokenInValueUsd, tokenOutValueUsd, ethValueUsd, pair);
 
     // if (isFeeBurner(pair) && maxAmountOut > 0) {
-    //   console2.log("Available to burn: %e", maxAmountOut);
     // }
     // console2.log("checkLiquidationPair amountOut %e", amountOut);
     // console2.log("checkLiquidationPair amountIn %e", amountIn);
@@ -75,19 +80,21 @@ contract LiquidatorAgent is Utils {
       tokenIn.mint(address(this), amountIn);
       tokenIn.approve(address(router), amountIn);
       router.swapExactAmountOut(
-        LiquidationPair(address(pair)),
+        FixedLiquidationPair(address(pair)),
         address(this),
         amountOut,
         uint256(uMAX_SD59x18 / 1e18), // NOTE: uMAX_SD59x18/1e18 for DaLiquidator
         block.timestamp + 10
       );
-
       if (isFeeBurner(pair)) {
         burnedPool += amountIn;
       }
 
-      uint256 elapsedSinceDrawEnded = block.timestamp -
-        prizePool.drawClosesAt(prizePool.getLastAwardedDrawId());
+
+      uint256 elapsedSinceDrawEnded;
+      // uint256 elapsedSinceDrawEnded = block.timestamp -
+      //   prizePool.drawClosesAt(prizePool.getLastAwardedDrawId());
+
 
       // SD59x18 efficiency = convert(int256(amountIn)).div(convert(int256(amountOutInPrizeTokens)));
       // uint256 efficiencyPercent = uint256(convert(efficiency.mul(convert(100))));
@@ -105,6 +112,7 @@ contract LiquidatorAgent is Utils {
       logs[9] = 0; //convert(profit);
       logs[10] = 0;
       logs[11] = pair.maxAmountOut();
+
 
       logUint256ToCsv(liquidatorCsvFile, logs);
     }    
@@ -143,7 +151,11 @@ contract LiquidatorAgent is Utils {
     uint256 amountOut
   ) public view returns (SD59x18) {
     SD59x18 amountOutInUsd = tokenOutValueUsd.mul(convert(int256(amountOut)));
-    SD59x18 cost = tokenInValueUsd.mul(convert(int256(amountIn))).add(computeGasCostInUsd(ethValueUsd, env.config().gas().liquidationCostInEth));
+    if (amountIn > 57896044618658097711785492504343953926634992332820282019728) {
+      return wrap(0);
+    }
+    SD59x18 capitalCost = tokenInValueUsd.mul(convert(int256(amountIn)));//.add(convert(int256(env.config().gas().liquidationCostInUsd)));
+    SD59x18 cost = capitalCost.add(convert(int256(env.config().gas().liquidationCostInUsd)));
     return cost.lt(amountOutInUsd) ? amountOutInUsd.sub(cost) : wrap(0);
   } 
 

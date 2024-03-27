@@ -22,3 +22,4 @@ pt-v5-prize-pool/=lib/pt-v5-prize-pool/src/
 pt-v5-twab-controller/=lib/pt-v5-twab-controller/src/
 pt-v5-vault/=lib/pt-v5-vault/src/
 pt-v5-vault-test/=lib/pt-v5-vault/test/
+fixed-liquidator/=lib/fixed-liquidator/src/

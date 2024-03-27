@@ -21,7 +21,7 @@ import { StdCheats } from "forge-std/StdCheats.sol";
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
-import { Config } from "../../src/utils/Config.sol";
+import { Config, USD_DECIMALS } from "../../src/utils/Config.sol";
 import { Utils } from "../../src/utils/Utils.sol";
 
 import { DrawLog, Logger } from "../../src/utils/Logger.sol";
@@ -52,22 +52,16 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   mapping(uint24 drawId => DrawLog) public drawLogs;
 
   function setUp() public {
-    console2.log("SingleChain setUp 1");
     startTime = block.timestamp + 10000 days;
     vm.warp(startTime);
     config = new Config();
     config.load(vm.envString("CONFIG"));
-    console2.log("SingleChain setUp 2");
     logger = new Logger(vm.envString("OUTPUT"));
 
     initOutputFileCsv(simulatorCsvFile, simulatorCsvColumns);
 
-    console2.log("SingleChain setUp 3");
-
     env = new SingleChainEnvironment(config);
-console2.log("SingleChain setUp 4");
     claimerAgent = new ClaimerAgent(env);
-    console2.log("SingleChain setUp 5");
     drawAgent = new DrawAgent(env);
     liquidatorAgent = new LiquidatorAgent(env);
   }
@@ -81,9 +75,11 @@ console2.log("SingleChain setUp 4");
       vm.roll(block.number + 2);
 
       // Let agents do their thing
+      uint yield = env.mintYield();
       uint apr = env.updateApr();
       liquidatorAgent.check(config.wethUsdValueOverTime().get(block.timestamp), config.poolUsdValueOverTime().get(block.timestamp));
-      
+
+      uint24 openDrawId = env.prizePool().getOpenDrawId();
       uint24 finalizedDrawId = env.prizePool().getLastAwardedDrawId();
       DrawLog memory finalizedDrawLog = drawLogs[finalizedDrawId];
       finalizedDrawLog.apr = apr;
@@ -95,7 +91,11 @@ console2.log("SingleChain setUp 4");
         closedDrawLog.numberOfTiers = closedDrawDetail.numberOfTiers;
         closedDrawLog.startDrawReward = closedDrawDetail.startDrawReward;
         closedDrawLog.finishDrawReward = closedDrawDetail.finishDrawReward;
-        closedDrawLog.burnedPool = liquidatorAgent.totalBurnedPoolPerDraw(closedDrawId);
+        closedDrawLog.totalLiquidationAmountOutUsd = formatUsd(liquidatorAgent.totalAmountOutPerDraw(closedDrawId), config.poolUsdValueOverTime().get(block.timestamp));
+        closedDrawLog.totalLiquidationAmountInUsd = formatUsd(liquidatorAgent.totalAmountInPerDraw(closedDrawId), config.wethUsdValueOverTime().get(block.timestamp));
+        closedDrawLog.reserveLiquidationAmountInUsd = formatUsd(liquidatorAgent.feeBurnerAmountInPerDraw(closedDrawId), config.poolUsdValueOverTime().get(block.timestamp));
+        closedDrawLog.reserveLiquidationAmountOutUsd = formatUsd(liquidatorAgent.feeBurnerAmountOutPerDraw(closedDrawId), config.wethUsdValueOverTime().get(block.timestamp));
+        closedDrawLog.burnedPool = liquidatorAgent.feeBurnerAmountInPerDraw(closedDrawId);
 
         {
           for (uint8 t = 0; t < closedDrawLog.numberOfTiers; t++) {
@@ -194,10 +194,10 @@ console2.log("SingleChain setUp 4");
     console2.log("");
     console2.log("Average fee per claim (WETH): ", formatTokens(averageFeePerClaim, config.wethUsdValueOverTime().get(block.timestamp)));
     console2.log("");
-    console2.log("Start draw cost (WETH): ", formatTokens(config.gas().startDrawCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
-    console2.log("Award draw cost (WETH): ", formatTokens(config.gas().finishDrawCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
-    console2.log("Claim cost (WETH): \t  ", formatTokens(config.gas().claimCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
-    console2.log("Liq. cost (WETH): \t  ", formatTokens(config.gas().liquidationCostInEth, config.wethUsdValueOverTime().get(block.timestamp)));
+    console2.log("Start draw cost (USD): ", formatUsd(config.gas().startDrawCostInUsd));
+    console2.log("Award draw cost (USD): ", formatUsd(config.gas().finishDrawCostInUsd));
+    console2.log("Claim cost (USD): \t  ", formatUsd(config.gas().claimCostInUsd));
+    console2.log("Liq. cost (USD): \t  ", formatUsd(config.gas().liquidationCostInUsd));
   }
 
   function printPrizeSummary() public view {
@@ -293,34 +293,24 @@ console2.log("SingleChain setUp 4");
       decimalPart = string.concat("0", decimalPart);
     }
 
-    string memory usdCentsPart = "";
-    uint256 amountInUSD = uint256(convert(convert(int256(value)).mul(exchangeRate)));
-    uint256 usdWhole = amountInUSD / (1e2);
-    uint256 usdCentsWhole = amountInUSD % (1e2);
-    usdCentsPart = vm.toString(usdCentsWhole);
-
-    // show 2 decimals
-    while(bytes(usdCentsPart).length < 2) {
-      usdCentsPart = string.concat("0", usdCentsPart);
-    }
-
-    return string.concat(wholePart, ".", decimalPart, " ($", vm.toString(usdWhole), ".", usdCentsPart, ")");
+    return string.concat(wholePart, ".", decimalPart, " (", formatUsd(value, exchangeRate), ")");
   }
 
   function formatUsd(uint256 tokens, SD59x18 usdPerToken) public view returns(string memory) {
     uint256 amountInUSD = uint256(convert(convert(int256(tokens)).mul(usdPerToken)));
-    uint256 usdWhole = amountInUSD / (1e2);
-    uint256 usdCentsWhole = amountInUSD % (1e2);
+    return formatUsd(amountInUSD);
+  }
+
+  function formatUsd(uint256 amountInUSD) public view returns(string memory) {
+    uint256 usdWhole = amountInUSD / (10**USD_DECIMALS);
+    uint256 usdCentsWhole = amountInUSD % (10**USD_DECIMALS);
     string memory usdCentsPart = vm.toString(usdCentsWhole);
 
-    // show 2 decimals
-    while(bytes(usdCentsPart).length < 2) {
+    while(bytes(usdCentsPart).length < USD_DECIMALS) {
       usdCentsPart = string.concat("0", usdCentsPart);
     }
 
-    return string.concat(vm.toString(usdWhole), ".", usdCentsPart);
+    return string.concat("$", vm.toString(usdWhole), ".", usdCentsPart, " USD");
   }
-
-
 
 }
