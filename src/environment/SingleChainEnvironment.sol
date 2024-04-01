@@ -7,13 +7,13 @@ import { console2 } from "forge-std/console2.sol";
 import { SD59x18, convert } from "prb-math/SD59x18.sol";
 import { UD2x18 } from "prb-math/UD2x18.sol";
 
-import { PrizeVault } from "pt-v5-vault/PrizeVault.sol";
+import { PrizeVault, IERC4626 } from "pt-v5-vault/PrizeVault.sol";
 import { PrizeVaultFactory } from "pt-v5-vault/PrizeVaultFactory.sol";
 import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 import { RngBlockhash } from "pt-v5-rng-blockhash/RngBlockhash.sol";
 
 import { DrawManager } from "pt-v5-draw-manager/DrawManager.sol";
-import { FeeBurner } from "pt-v5-prize-pool-fee-burner/FeeBurner.sol";
+import { StakingVault, IERC20 } from "pt-v5-staking-vault/StakingVault.sol";
 
 import { TwabController } from "pt-v5-twab-controller/TwabController.sol";
 import { PrizePool, ConstructorParams } from "pt-v5-prize-pool/PrizePool.sol";
@@ -25,8 +25,8 @@ import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.s
 
 // import { LiquidationPairFactory } from "pt-v5-cgda-liquidator/LiquidationPairFactory.sol";
 // import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
-import { FixedLiquidationPairFactory } from "fixed-liquidator/FixedLiquidationPairFactory.sol";
-import { FixedLiquidationRouter } from "fixed-liquidator/FixedLiquidationRouter.sol";
+import { TpdaLiquidationPairFactory } from "fixed-liquidator/TpdaLiquidationPairFactory.sol";
+import { TpdaLiquidationRouter } from "fixed-liquidator/TpdaLiquidationRouter.sol";
 
 import { YieldVaultMintRate } from "../YieldVaultMintRate.sol";
 
@@ -57,9 +57,9 @@ contract SingleChainEnvironment is Utils, StdCheats {
   YieldVaultMintRate public yieldVault;
   ILiquidationPair public pair;
   Claimer public claimer;
-  FixedLiquidationRouter public router;
-  FeeBurner public feeBurner;
-  ILiquidationPair public feeBurnerPair;
+  TpdaLiquidationRouter public router;
+  StakingVault public stakingVault;
+  PrizeVault public stakingPrizeVault;
 
   address[] public users;
 
@@ -104,8 +104,29 @@ contract SingleChainEnvironment is Utils, StdCheats {
 
     // console2.log("SingleChainEnvironment constructor 3");
 
+    claimer = new Claimer(
+      prizePool,
+      claimerConfig.minimumFee,
+      claimerConfig.maximumFee,
+      claimerConfig.timeToReachMaxFee,
+      claimerConfig.maxFeePortionOfPrize
+    );
+    console2.log("Claimer DecayConstant ", claimer.decayConstant().unwrap());
+
+    stakingVault = new StakingVault("POOL Staking Vault", "sPOOL", IERC20(address(poolToken)));
+    stakingPrizeVault = new PrizeVault(
+      "POOL Staking Prize Vault",
+      "pPOOL",
+      IERC4626(address(stakingVault)),
+      prizePool,
+      address(claimer),
+      address(0),
+      0,
+      0,
+      address(this)
+    );
+
     rng = new RngBlockhash();
-    feeBurner = new FeeBurner(prizePool, address(poolToken), address(this));
     drawManager = new DrawManager(
       prizePool,
       rng,
@@ -114,7 +135,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
       drawManagerConfig.firstAuctionTargetRewardFraction,
       config.getFirstRngRelayAuctionTargetRewardFraction(),
       drawManagerConfig.auctionMaxReward,
-      address(feeBurner)
+      address(stakingVault)
     );
 
     prizePool.setDrawManager(address(drawManager));
@@ -127,18 +148,6 @@ contract SingleChainEnvironment is Utils, StdCheats {
     vaultFactory = new PrizeVaultFactory();
 
     // console2.log("SingleChainEnvironment constructor 5");
-
-
-    claimer = new Claimer(
-      prizePool,
-      claimerConfig.minimumFee,
-      claimerConfig.maximumFee,
-      claimerConfig.timeToReachMaxFee,
-      claimerConfig.maxFeePortionOfPrize
-    );
-
-    console2.log("Claimer DecayConstant ", claimer.decayConstant().unwrap());
-    // console2.log("SingleChainEnvironment constructor 6");
 
     underlyingToken.mint(address(this), vaultFactory.YIELD_BUFFER());
     underlyingToken.approve(address(vaultFactory), vaultFactory.YIELD_BUFFER());
@@ -165,10 +174,10 @@ contract SingleChainEnvironment is Utils, StdCheats {
     SD59x18 wethUsdValue = config.wethUsdValueOverTime().get(block.timestamp);
     SD59x18 poolUsdValue = config.poolUsdValueOverTime().get(block.timestamp);
 
-    FixedLiquidationPairFactory pairFactory = new FixedLiquidationPairFactory();
-    vm.label(address(pairFactory), "FixedLiquidationPairFactory");
-    FixedLiquidationRouter fixedRouter = new FixedLiquidationRouter(pairFactory);
-    vm.label(address(fixedRouter), "FixedLiquidationRouter");
+    TpdaLiquidationPairFactory pairFactory = new TpdaLiquidationPairFactory();
+    vm.label(address(pairFactory), "TpdaLiquidationPairFactory");
+    TpdaLiquidationRouter fixedRouter = new TpdaLiquidationRouter(pairFactory);
+    vm.label(address(fixedRouter), "TpdaLiquidationRouter");
     // console2.log(
     //   "initializeCgdaLiquidator _liquidatorConfig.exchangeRatePrizeTokenToUnderlying",
     //   _liquidatorConfig.exchangeRatePrizeTokenToUnderlying.unwrap()
@@ -198,33 +207,25 @@ contract SingleChainEnvironment is Utils, StdCheats {
     );
     vm.label(address(pair), "VaultLiquidationPair");
 
-    router = FixedLiquidationRouter(address(fixedRouter));
+    router = TpdaLiquidationRouter(address(fixedRouter));
     vault.setLiquidationPair(address(pair));
-
-    feeBurnerPair = ILiquidationPair(
-      address(
-        pairFactory.createPair(
-          ILiquidationSource(address(feeBurner)),
-          address(poolToken),
-          address(prizeToken),
-          config.prizePool().drawPeriodSeconds / 3,
-          1e18, // 1 POOL,
-          0.95e18 // very high smoothing
-        )
-      )
-    );
-    vm.label(address(feeBurnerPair), "FeeBurnerLiquidationPair");
-
-    feeBurner.setLiquidationPair(address(feeBurnerPair));
   }
 
   function addUsers(uint256 count, uint256 depositSize) public {
     for (uint256 i = 0; i < count; i++) {
       address user = makeAddr(string.concat("user", string(abi.encode(i))));
       vm.startPrank(user);
+
+      // deposit in vault
       underlyingToken.mint(user, depositSize);
       underlyingToken.approve(address(vault), depositSize);
       vault.deposit(depositSize, user);
+
+      // deposit in POOL staking vault (has no yield, so the amount deposited is relative to other POOL deposits)
+      poolToken.mint(user, 1e18);
+      poolToken.approve(address(stakingPrizeVault), 1e18);
+      stakingPrizeVault.deposit(1e18, user);
+
       vm.stopPrank();
       users.push(user);
     }
@@ -235,6 +236,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
       address user = users[i];
       vm.startPrank(user);
       vault.withdraw(vault.balanceOf(user), user, user);
+      stakingPrizeVault.withdraw(stakingPrizeVault.balanceOf(user), user, user);
       vm.stopPrank();
     }
   }

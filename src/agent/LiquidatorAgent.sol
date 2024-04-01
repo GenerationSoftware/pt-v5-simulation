@@ -7,8 +7,8 @@ import { SD59x18, wrap, convert, uMAX_SD59x18 } from "prb-math/SD59x18.sol";
 
 import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.sol";
-import { FixedLiquidationPair } from "fixed-liquidator/FixedLiquidationPair.sol";
-import { FixedLiquidationRouter } from "fixed-liquidator/FixedLiquidationRouter.sol";
+import { TpdaLiquidationPair } from "fixed-liquidator/TpdaLiquidationPair.sol";
+import { TpdaLiquidationRouter } from "fixed-liquidator/TpdaLiquidationRouter.sol";
 import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
 
 import { SingleChainEnvironment } from "../environment/SingleChainEnvironment.sol";
@@ -25,17 +25,12 @@ contract LiquidatorAgent is Utils {
 
   PrizePool public prizePool;
   ERC20PermitMock public prizeToken;
-  FixedLiquidationRouter public router;
+  TpdaLiquidationRouter public router;
 
   string liquidatorCsv;
 
-  uint public burnedPool;
-
-  mapping(uint24 drawId => uint256 totalBurnedPool) public totalBurnedPoolPerDraw;
   mapping(uint24 drawId => uint256 amountIn) public totalAmountInPerDraw;
   mapping(uint24 drawId => uint256 amountOut) public totalAmountOutPerDraw;
-  mapping(uint24 drawId => uint256 amountIn) public feeBurnerAmountInPerDraw;
-  mapping(uint24 drawId => uint256 amountOut) public feeBurnerAmountOutPerDraw;
 
   constructor(SingleChainEnvironment _env) {
     env = _env;
@@ -58,11 +53,6 @@ contract LiquidatorAgent is Utils {
       totalAmountInPerDraw[openDrawId] += amountIn;
       totalAmountOutPerDraw[openDrawId] += amountOut;
     }
-    (amountOut, amountIn, profit) = checkLiquidationPair(poolUsdValue, wethUsdValue, wethUsdValue, env.feeBurnerPair());
-    if (profit.gt(wrap(0))) {
-      feeBurnerAmountInPerDraw[openDrawId] += amountIn;
-      feeBurnerAmountOutPerDraw[openDrawId] += amountOut;
-    }
   }
 
   function checkLiquidationPair(SD59x18 tokenInValueUsd, SD59x18 tokenOutValueUsd, SD59x18 ethValueUsd, ILiquidationPair pair) public returns (uint256 amountOut, uint256 amountIn, SD59x18 profit) {
@@ -70,25 +60,17 @@ contract LiquidatorAgent is Utils {
 
     (amountOut, amountIn, profit) = _findBestProfit(tokenInValueUsd, tokenOutValueUsd, ethValueUsd, pair);
 
-    // if (isFeeBurner(pair) && maxAmountOut > 0) {
-    // }
-    // console2.log("checkLiquidationPair amountOut %e", amountOut);
-    // console2.log("checkLiquidationPair amountIn %e", amountIn);
-
     if (profit.gt(wrap(0))) {
       ERC20PermitMock tokenIn = ERC20PermitMock(pair.tokenIn());
       tokenIn.mint(address(this), amountIn);
       tokenIn.approve(address(router), amountIn);
       router.swapExactAmountOut(
-        FixedLiquidationPair(address(pair)),
+        TpdaLiquidationPair(address(pair)),
         address(this),
         amountOut,
         uint256(uMAX_SD59x18 / 1e18), // NOTE: uMAX_SD59x18/1e18 for DaLiquidator
         block.timestamp + 10
       );
-      if (isFeeBurner(pair)) {
-        burnedPool += amountIn;
-      }
 
 
       uint256 elapsedSinceDrawEnded;
@@ -159,7 +141,4 @@ contract LiquidatorAgent is Utils {
     return cost.lt(amountOutInUsd) ? amountOutInUsd.sub(cost) : wrap(0);
   } 
 
-  function isFeeBurner(ILiquidationPair pair) public view returns (bool) {
-    return address(pair) == address(env.feeBurnerPair());
-  }
 }
