@@ -34,10 +34,6 @@
 	path = lib/pt-v5-cgda-liquidator
 	url = https://github.com/GenerationSoftware/pt-v5-cgda-liquidator
 	branch = main
-[submodule "lib/pt-v5-draw-auction"]
-	path = lib/pt-v5-draw-auction
-	url = https://github.com/GenerationSoftware/pt-v5-draw-auction
-	branch = main
 [submodule "lib/erc5164-interfaces"]
 	path = lib/erc5164-interfaces
 	url = https://github.com/GenerationSoftware/erc5164-interfaces
@@ -51,9 +47,6 @@
 [submodule "lib/pt-v5-rng-blockhash"]
 	path = lib/pt-v5-rng-blockhash
 	url = https://github.com/GenerationSoftware/pt-v5-rng-blockhash
-[submodule "lib/pt-v5-prize-pool-fee-burner"]
-	path = lib/pt-v5-prize-pool-fee-burner
-	url = https://github.com/GenerationSoftware/pt-v5-prize-pool-fee-burner
 [submodule "lib/fixed-liquidator"]
 	path = lib/fixed-liquidator
 	url = https://github.com/generationsoftware/fixed-liquidator
