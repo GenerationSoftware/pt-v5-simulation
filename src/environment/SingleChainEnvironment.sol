@@ -58,8 +58,8 @@ contract SingleChainEnvironment is Utils, StdCheats {
   ILiquidationPair public pair;
   Claimer public claimer;
   TpdaLiquidationRouter public router;
-  StakingVault public stakingVault;
-  PrizeVault public stakingPrizeVault;
+  StakingVault public poolVault;
+  PrizeVault public poolPrizeVault;
 
   address[] public users;
 
@@ -113,11 +113,11 @@ contract SingleChainEnvironment is Utils, StdCheats {
     );
     console2.log("Claimer DecayConstant ", claimer.decayConstant().unwrap());
 
-    stakingVault = new StakingVault("POOL Staking Vault", "sPOOL", IERC20(address(poolToken)));
-    stakingPrizeVault = new PrizeVault(
+    poolVault = new StakingVault("POOL Staking Vault", "sPOOL", IERC20(address(poolToken)));
+    poolPrizeVault = new PrizeVault(
       "POOL Staking Prize Vault",
       "pPOOL",
-      IERC4626(address(stakingVault)),
+      IERC4626(address(poolVault)),
       prizePool,
       address(claimer),
       address(0),
@@ -135,7 +135,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
       drawManagerConfig.firstAuctionTargetRewardFraction,
       config.getFirstRngRelayAuctionTargetRewardFraction(),
       drawManagerConfig.auctionMaxReward,
-      address(stakingVault)
+      address(poolPrizeVault)
     );
 
     prizePool.setDrawManager(address(drawManager));
@@ -223,8 +223,8 @@ contract SingleChainEnvironment is Utils, StdCheats {
 
       // deposit in POOL staking vault (has no yield, so the amount deposited is relative to other POOL deposits)
       poolToken.mint(user, 1e18);
-      poolToken.approve(address(stakingPrizeVault), 1e18);
-      stakingPrizeVault.deposit(1e18, user);
+      poolToken.approve(address(poolPrizeVault), 1e18);
+      poolPrizeVault.deposit(1e18, user);
 
       vm.stopPrank();
       users.push(user);
@@ -236,7 +236,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
       address user = users[i];
       vm.startPrank(user);
       vault.withdraw(vault.balanceOf(user), user, user);
-      stakingPrizeVault.withdraw(stakingPrizeVault.balanceOf(user), user, user);
+      poolPrizeVault.withdraw(poolPrizeVault.balanceOf(user), user, user);
       vm.stopPrank();
     }
   }

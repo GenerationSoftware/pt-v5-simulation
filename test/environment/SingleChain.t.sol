@@ -44,7 +44,7 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   SingleChainEnvironment public env;
   Config public config;
   ClaimerAgent public vaultClaimerAgent;
-  ClaimerAgent public stakingVaultClaimerAgent;
+  ClaimerAgent public poolPrizeVaultClaimerAgent;
   DrawAgent public drawAgent;
   LiquidatorAgent public liquidatorAgent;
 
@@ -63,7 +63,7 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
 
     env = new SingleChainEnvironment(config);
     vaultClaimerAgent = new ClaimerAgent(env, env.vault());
-    stakingVaultClaimerAgent = new ClaimerAgent(env, env.stakingPrizeVault());
+    poolPrizeVaultClaimerAgent = new ClaimerAgent(env, env.poolPrizeVault());
     drawAgent = new DrawAgent(env);
     liquidatorAgent = new LiquidatorAgent(env);
   }
@@ -106,8 +106,8 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
 
           if (finalizedDrawId > 0) {
             for (uint8 t = 0; t < finalizedDrawLog.numberOfTiers; t++) {
-              finalizedDrawLog.claimedPrizes[t] = vaultClaimerAgent.drawTierClaimedPrizeCounts(finalizedDrawId, t) + stakingVaultClaimerAgent.drawTierClaimedPrizeCounts(finalizedDrawId, t);
-              finalizedDrawLog.computedPrizes[t] = vaultClaimerAgent.drawTierComputedPrizeCounts(finalizedDrawId, t) + stakingVaultClaimerAgent.drawTierComputedPrizeCounts(finalizedDrawId, t);
+              finalizedDrawLog.claimedPrizes[t] = vaultClaimerAgent.drawTierClaimedPrizeCounts(finalizedDrawId, t) + poolPrizeVaultClaimerAgent.drawTierClaimedPrizeCounts(finalizedDrawId, t);
+              finalizedDrawLog.computedPrizes[t] = vaultClaimerAgent.drawTierComputedPrizeCounts(finalizedDrawId, t) + poolPrizeVaultClaimerAgent.drawTierComputedPrizeCounts(finalizedDrawId, t);
             }  
           }
         }
@@ -116,7 +116,7 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
         drawLogs[finalizedDrawId] = finalizedDrawLog;
       }
       vaultClaimerAgent.check();
-      stakingVaultClaimerAgent.check();
+      poolPrizeVaultClaimerAgent.check();
     }
 
     dumpLogs();
@@ -143,8 +143,8 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
     for (uint24 drawId = 0; drawId <= lastDrawId; drawId++) {
       uint256 numTiers = vaultClaimerAgent.drawNumberOfTiers(drawId);
       for (uint8 tier = 0; tier < numTiers; tier++) {
-        uint256 prizeCount = vaultClaimerAgent.drawTierComputedPrizeCounts(drawId, tier) + stakingVaultClaimerAgent.drawTierComputedPrizeCounts(drawId, tier);
-        uint256 claimCount = vaultClaimerAgent.drawTierClaimedPrizeCounts(drawId, tier) + stakingVaultClaimerAgent.drawTierClaimedPrizeCounts(drawId, tier);
+        uint256 prizeCount = vaultClaimerAgent.drawTierComputedPrizeCounts(drawId, tier) + poolPrizeVaultClaimerAgent.drawTierComputedPrizeCounts(drawId, tier);
+        uint256 claimCount = vaultClaimerAgent.drawTierClaimedPrizeCounts(drawId, tier) + poolPrizeVaultClaimerAgent.drawTierClaimedPrizeCounts(drawId, tier);
         if (claimCount < prizeCount && tier < (numTiers - 1)) { // not last canary tier
           console2.log(
             "!!!!! MISSED PRIZES draw, tier, count",
@@ -161,12 +161,14 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
     uint reserve = env.prizePool().reserve() + env.prizePool().pendingReserveContributions();
     uint totalLiquidity = env.prizePool().getTotalContributedBetween(1, env.prizePool().getOpenDrawId());
     uint finalPrizeLiquidity = env.prizePool().accountedBalance() - reserve;
+    uint totalContributedToPoolPrizeVault = env.prizePool().getContributedBetween(address(env.poolPrizeVault()), 1, env.prizePool().getOpenDrawId());
     SD59x18 wethUsdValue = config.wethUsdValueOverTime().get(block.timestamp);
     SD59x18 poolUsdValue = config.poolUsdValueOverTime().get(block.timestamp);
     console2.log("");
     console2.log("Total liquidity (WETH): ", formatTokens(totalLiquidity, wethUsdValue));
     console2.log("Final prize liquidity (WETH)", formatTokens(finalPrizeLiquidity, wethUsdValue));
     console2.log("Final reserve liquidity (WETH)", formatTokens(reserve, wethUsdValue));
+    console2.log("Total Contributed for POOL Prize Vault (WETH)", formatTokens(totalContributedToPoolPrizeVault, wethUsdValue));
   }
 
   function printDraws() public view {
@@ -180,8 +182,8 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   }
 
   function printTotalNormalPrizes() public view {
-    uint256 normalComputed = vaultClaimerAgent.totalPrizesComputed() + stakingVaultClaimerAgent.totalPrizesComputed();
-    uint256 normalClaimed = vaultClaimerAgent.totalPrizesClaimed() + stakingVaultClaimerAgent.totalPrizesClaimed();
+    uint256 normalComputed = vaultClaimerAgent.totalPrizesComputed() + poolPrizeVaultClaimerAgent.totalPrizesComputed();
+    uint256 normalClaimed = vaultClaimerAgent.totalPrizesClaimed() + poolPrizeVaultClaimerAgent.totalPrizesClaimed();
     console2.log("");
     console2.log("Number of normal prizes", normalComputed);
     console2.log("Number of prizes claimed", normalClaimed);
@@ -189,8 +191,8 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   }
 
   function printTotalClaimFees() public view {
-    uint256 totalPrizes = vaultClaimerAgent.totalPrizesClaimed() + stakingVaultClaimerAgent.totalPrizesClaimed();
-    uint256 averageFeePerClaim = totalPrizes > 0 ? (vaultClaimerAgent.totalFees() + stakingVaultClaimerAgent.totalFees()) / totalPrizes : 0;
+    uint256 totalPrizes = vaultClaimerAgent.totalPrizesClaimed() + poolPrizeVaultClaimerAgent.totalPrizesClaimed();
+    uint256 averageFeePerClaim = totalPrizes > 0 ? (vaultClaimerAgent.totalFees() + poolPrizeVaultClaimerAgent.totalFees()) / totalPrizes : 0;
     console2.log("");
     console2.log("Average fee per claim (WETH): ", formatTokens(averageFeePerClaim, config.wethUsdValueOverTime().get(block.timestamp)));
     console2.log("");
@@ -218,7 +220,7 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
         maxTiers = numTiers;
       }
       for (uint8 tier = 0; tier < numTiers; tier++) {
-        tierPrizeCounts[tier] += vaultClaimerAgent.drawTierClaimedPrizeCounts(drawId, tier) + stakingVaultClaimerAgent.drawTierClaimedPrizeCounts(drawId, tier);
+        tierPrizeCounts[tier] += vaultClaimerAgent.drawTierClaimedPrizeCounts(drawId, tier) + poolPrizeVaultClaimerAgent.drawTierClaimedPrizeCounts(drawId, tier);
       }
     }
 
