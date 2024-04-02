@@ -44,9 +44,9 @@ struct ClaimerConfig {
 }
 
 struct DrawManagerConfig {
-  uint64 sequenceOffset;
-  uint64 auctionDuration;
-  uint64 auctionTargetTime;
+  uint48 sequenceOffset;
+  uint48 auctionDuration;
+  uint48 auctionTargetTime;
   uint256 auctionMaxReward;
   UD2x18 firstAuctionTargetRewardFraction;
 }
@@ -106,8 +106,8 @@ contract Config is CommonBase {
     _prizePool.drawTimeout = vm.parseJsonUint(config, "$.prize_pool.draw_timeout").toUint24();
     _prizePool.tierLiquidityUtilizationRate = vm.parseJsonUint(config, "$.prize_pool.tier_liquidity_utilization_rate");
 
-    _drawManager.auctionDuration = vm.parseJsonUint(config, "$.draw_manager.auction_duration").toUint64();
-    _drawManager.auctionTargetTime = vm.parseJsonUint(config, "$.draw_manager.auction_target_time").toUint64();
+    _drawManager.auctionDuration = vm.parseJsonUint(config, "$.draw_manager.auction_duration").toUint48();
+    _drawManager.auctionTargetTime = vm.parseJsonUint(config, "$.draw_manager.auction_target_time").toUint48();
     _drawManager.auctionMaxReward = vm.parseJsonUint(config, "$.draw_manager.auction_max_reward");
     _drawManager.firstAuctionTargetRewardFraction = ud2x18(vm.parseJsonUint(config, "$.draw_manager.first_auction_target_reward_fraction").toUint64());
     

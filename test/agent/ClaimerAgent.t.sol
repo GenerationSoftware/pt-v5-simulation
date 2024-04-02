@@ -76,7 +76,7 @@ contract ClaimerAgentTest is Test {
     mockNoPrizes(user1, numTiers);
     mockNoPrizes(user2, numTiers);
 
-    agent = new ClaimerAgent(env);
+    agent = new ClaimerAgent(env, env.vault());
   }
 
   function testComputePrizes_noPrizes() public {

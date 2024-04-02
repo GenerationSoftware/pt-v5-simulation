@@ -13,7 +13,7 @@ import { Config } from "../utils/Config.sol";
 import { Utils } from "../utils/Utils.sol";
 
 contract ClaimerAgent is Utils {
-  string claimerCsvFile = string.concat(vm.projectRoot(), "/data/claimerOut.csv");
+  string claimerCsvFile;
   string claimerCsvColumns = "Draw ID, Tier, Winner, Prize Index, Fees For Batch";
 
   SingleChainEnvironment public env;
@@ -47,14 +47,15 @@ contract ClaimerAgent is Utils {
 
   uint logVerbosity;
 
-  constructor(SingleChainEnvironment _env) {
+  constructor(SingleChainEnvironment _env, PrizeVault _vault) {
     env = _env;
     logVerbosity = _env.config().simulation().verbosity;
 
     claimer = env.claimer();
     prizePool = env.prizePool();
-    vault = env.vault();
+    vault = _vault;
 
+    claimerCsvFile = string.concat(vm.projectRoot(), "/data/claimerOut-", vm.toString(address(_vault)), ".csv");
     initOutputFileCsv(claimerCsvFile, claimerCsvColumns);
   }
 

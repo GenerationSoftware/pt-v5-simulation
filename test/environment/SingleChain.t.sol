@@ -43,7 +43,8 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
 
   SingleChainEnvironment public env;
   Config public config;
-  ClaimerAgent public claimerAgent;
+  ClaimerAgent public vaultClaimerAgent;
+  ClaimerAgent public poolPrizeVaultClaimerAgent;
   DrawAgent public drawAgent;
   LiquidatorAgent public liquidatorAgent;
 
@@ -61,7 +62,8 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
     initOutputFileCsv(simulatorCsvFile, simulatorCsvColumns);
 
     env = new SingleChainEnvironment(config);
-    claimerAgent = new ClaimerAgent(env);
+    vaultClaimerAgent = new ClaimerAgent(env, env.vault());
+    poolPrizeVaultClaimerAgent = new ClaimerAgent(env, env.poolPrizeVault());
     drawAgent = new DrawAgent(env);
     liquidatorAgent = new LiquidatorAgent(env);
   }
@@ -93,9 +95,7 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
         closedDrawLog.finishDrawReward = closedDrawDetail.finishDrawReward;
         closedDrawLog.totalLiquidationAmountOutUsd = formatUsd(liquidatorAgent.totalAmountOutPerDraw(closedDrawId), config.poolUsdValueOverTime().get(block.timestamp));
         closedDrawLog.totalLiquidationAmountInUsd = formatUsd(liquidatorAgent.totalAmountInPerDraw(closedDrawId), config.wethUsdValueOverTime().get(block.timestamp));
-        closedDrawLog.reserveLiquidationAmountInUsd = formatUsd(liquidatorAgent.feeBurnerAmountInPerDraw(closedDrawId), config.poolUsdValueOverTime().get(block.timestamp));
-        closedDrawLog.reserveLiquidationAmountOutUsd = formatUsd(liquidatorAgent.feeBurnerAmountOutPerDraw(closedDrawId), config.wethUsdValueOverTime().get(block.timestamp));
-        closedDrawLog.burnedPool = liquidatorAgent.feeBurnerAmountInPerDraw(closedDrawId);
+        closedDrawLog.reserveAmountContributedUsd = formatUsd(prizePool.getContributedBetween(env.drawManager().vaultBeneficiary(), closedDrawId + 1, closedDrawId + 1), config.wethUsdValueOverTime().get(block.timestamp));
 
         {
           for (uint8 t = 0; t < closedDrawLog.numberOfTiers; t++) {
@@ -106,8 +106,8 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
 
           if (finalizedDrawId > 0) {
             for (uint8 t = 0; t < finalizedDrawLog.numberOfTiers; t++) {
-              finalizedDrawLog.claimedPrizes[t] = claimerAgent.drawTierClaimedPrizeCounts(finalizedDrawId, t);
-              finalizedDrawLog.computedPrizes[t] = claimerAgent.drawTierComputedPrizeCounts(finalizedDrawId, t);
+              finalizedDrawLog.claimedPrizes[t] = vaultClaimerAgent.drawTierClaimedPrizeCounts(finalizedDrawId, t) + poolPrizeVaultClaimerAgent.drawTierClaimedPrizeCounts(finalizedDrawId, t);
+              finalizedDrawLog.computedPrizes[t] = vaultClaimerAgent.drawTierComputedPrizeCounts(finalizedDrawId, t) + poolPrizeVaultClaimerAgent.drawTierComputedPrizeCounts(finalizedDrawId, t);
             }  
           }
         }
@@ -115,7 +115,8 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
         drawLogs[closedDrawId] = closedDrawLog;
         drawLogs[finalizedDrawId] = finalizedDrawLog;
       }
-      claimerAgent.check();
+      vaultClaimerAgent.check();
+      poolPrizeVaultClaimerAgent.check();
     }
 
     dumpLogs();
@@ -140,10 +141,10 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   function printMissedPrizes() public view {
     uint24 lastDrawId = env.prizePool().getLastAwardedDrawId();
     for (uint24 drawId = 0; drawId <= lastDrawId; drawId++) {
-      uint256 numTiers = claimerAgent.drawNumberOfTiers(drawId);
+      uint256 numTiers = vaultClaimerAgent.drawNumberOfTiers(drawId);
       for (uint8 tier = 0; tier < numTiers; tier++) {
-        uint256 prizeCount = claimerAgent.drawTierComputedPrizeCounts(drawId, tier);
-        uint256 claimCount = claimerAgent.drawTierClaimedPrizeCounts(drawId, tier);
+        uint256 prizeCount = vaultClaimerAgent.drawTierComputedPrizeCounts(drawId, tier) + poolPrizeVaultClaimerAgent.drawTierComputedPrizeCounts(drawId, tier);
+        uint256 claimCount = vaultClaimerAgent.drawTierClaimedPrizeCounts(drawId, tier) + poolPrizeVaultClaimerAgent.drawTierClaimedPrizeCounts(drawId, tier);
         if (claimCount < prizeCount && tier < (numTiers - 1)) { // not last canary tier
           console2.log(
             "!!!!! MISSED PRIZES draw, tier, count",
@@ -160,13 +161,14 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
     uint reserve = env.prizePool().reserve() + env.prizePool().pendingReserveContributions();
     uint totalLiquidity = env.prizePool().getTotalContributedBetween(1, env.prizePool().getOpenDrawId());
     uint finalPrizeLiquidity = env.prizePool().accountedBalance() - reserve;
+    uint totalContributedToPoolPrizeVault = env.prizePool().getContributedBetween(address(env.poolPrizeVault()), 1, env.prizePool().getOpenDrawId());
     SD59x18 wethUsdValue = config.wethUsdValueOverTime().get(block.timestamp);
     SD59x18 poolUsdValue = config.poolUsdValueOverTime().get(block.timestamp);
     console2.log("");
     console2.log("Total liquidity (WETH): ", formatTokens(totalLiquidity, wethUsdValue));
-    console2.log("Total burned (POOL): ", formatTokens(liquidatorAgent.burnedPool(), poolUsdValue));
     console2.log("Final prize liquidity (WETH)", formatTokens(finalPrizeLiquidity, wethUsdValue));
     console2.log("Final reserve liquidity (WETH)", formatTokens(reserve, wethUsdValue));
+    console2.log("Total Contributed for POOL Prize Vault (WETH)", formatTokens(totalContributedToPoolPrizeVault, wethUsdValue));
   }
 
   function printDraws() public view {
@@ -180,8 +182,8 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   }
 
   function printTotalNormalPrizes() public view {
-    uint256 normalComputed = claimerAgent.totalPrizesComputed();
-    uint256 normalClaimed = claimerAgent.totalPrizesClaimed();
+    uint256 normalComputed = vaultClaimerAgent.totalPrizesComputed() + poolPrizeVaultClaimerAgent.totalPrizesComputed();
+    uint256 normalClaimed = vaultClaimerAgent.totalPrizesClaimed() + poolPrizeVaultClaimerAgent.totalPrizesClaimed();
     console2.log("");
     console2.log("Number of normal prizes", normalComputed);
     console2.log("Number of prizes claimed", normalClaimed);
@@ -189,8 +191,8 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   }
 
   function printTotalClaimFees() public view {
-    uint256 totalPrizes = claimerAgent.totalPrizesClaimed();
-    uint256 averageFeePerClaim = totalPrizes > 0 ? claimerAgent.totalFees() / totalPrizes : 0;
+    uint256 totalPrizes = vaultClaimerAgent.totalPrizesClaimed() + poolPrizeVaultClaimerAgent.totalPrizesClaimed();
+    uint256 averageFeePerClaim = totalPrizes > 0 ? (vaultClaimerAgent.totalFees() + poolPrizeVaultClaimerAgent.totalFees()) / totalPrizes : 0;
     console2.log("");
     console2.log("Average fee per claim (WETH): ", formatTokens(averageFeePerClaim, config.wethUsdValueOverTime().get(block.timestamp)));
     console2.log("");
@@ -205,7 +207,7 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
     uint8 maxTiers;
     uint24 lastDrawId = env.prizePool().getLastAwardedDrawId();
     for (uint24 drawId = 0; drawId <= lastDrawId; drawId++) {
-      uint8 numTiers = claimerAgent.drawNumberOfTiers(drawId);
+      uint8 numTiers = vaultClaimerAgent.drawNumberOfTiers(drawId);
       if (numTiers > maxTiers) {
         maxTiers = numTiers;
       }
@@ -213,12 +215,12 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
 
     uint256[] memory tierPrizeCounts = new uint256[](maxTiers);
     for (uint24 drawId = 0; drawId <= lastDrawId; drawId++) {
-      uint8 numTiers = claimerAgent.drawNumberOfTiers(drawId);
+      uint8 numTiers = vaultClaimerAgent.drawNumberOfTiers(drawId);
       if (numTiers > maxTiers) {
         maxTiers = numTiers;
       }
       for (uint8 tier = 0; tier < numTiers; tier++) {
-        tierPrizeCounts[tier] += claimerAgent.drawTierClaimedPrizeCounts(drawId, tier);
+        tierPrizeCounts[tier] += vaultClaimerAgent.drawTierClaimedPrizeCounts(drawId, tier) + poolPrizeVaultClaimerAgent.drawTierClaimedPrizeCounts(drawId, tier);
       }
     }
 
