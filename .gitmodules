@@ -44,7 +44,7 @@
 [submodule "lib/pt-v5-draw-manager"]
 	path = lib/pt-v5-draw-manager
 	url = https://github.com/GenerationSoftware/pt-v5-draw-manager
-	branch = gen-1258-add-staking-vault-to-draw-manager
+	branch = main
 [submodule "lib/pt-v5-rng-blockhash"]
 	path = lib/pt-v5-rng-blockhash
 	url = https://github.com/GenerationSoftware/pt-v5-rng-blockhash

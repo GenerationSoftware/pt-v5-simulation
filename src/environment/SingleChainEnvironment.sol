@@ -106,12 +106,9 @@ contract SingleChainEnvironment is Utils, StdCheats {
 
     claimer = new Claimer(
       prizePool,
-      claimerConfig.minimumFee,
-      claimerConfig.maximumFee,
       claimerConfig.timeToReachMaxFee,
       claimerConfig.maxFeePortionOfPrize
     );
-    console2.log("Claimer DecayConstant ", claimer.decayConstant().unwrap());
 
     poolVault = new StakingVault("POOL Staking Vault", "sPOOL", IERC20(address(poolToken)));
     poolPrizeVault = new PrizeVault(
