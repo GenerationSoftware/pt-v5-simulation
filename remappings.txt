@@ -21,4 +21,4 @@ pt-v5-twab-controller/=lib/pt-v5-twab-controller/src/
 pt-v5-vault/=lib/pt-v5-vault/src/
 pt-v5-vault-test/=lib/pt-v5-vault/test/
 pt-v5-staking-vault/=lib/pt-v5-staking-vault/src/
-fixed-liquidator/=lib/fixed-liquidator/src/
+pt-v5-tpda-liquidator/=lib/pt-v5-tpda-liquidator/src/

@@ -25,8 +25,8 @@ import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.s
 
 // import { LiquidationPairFactory } from "pt-v5-cgda-liquidator/LiquidationPairFactory.sol";
 // import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
-import { TpdaLiquidationPairFactory } from "fixed-liquidator/TpdaLiquidationPairFactory.sol";
-import { TpdaLiquidationRouter } from "fixed-liquidator/TpdaLiquidationRouter.sol";
+import { TpdaLiquidationPairFactory } from "pt-v5-tpda-liquidator/TpdaLiquidationPairFactory.sol";
+import { TpdaLiquidationRouter } from "pt-v5-tpda-liquidator/TpdaLiquidationRouter.sol";
 
 import { YieldVaultMintRate } from "../YieldVaultMintRate.sol";
 

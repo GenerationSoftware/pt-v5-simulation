@@ -7,8 +7,8 @@ import { SD59x18, wrap, convert, uMAX_SD59x18 } from "prb-math/SD59x18.sol";
 
 import { ERC20PermitMock } from "pt-v5-vault-test/contracts/mock/ERC20PermitMock.sol";
 import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.sol";
-import { TpdaLiquidationPair } from "fixed-liquidator/TpdaLiquidationPair.sol";
-import { TpdaLiquidationRouter } from "fixed-liquidator/TpdaLiquidationRouter.sol";
+import { TpdaLiquidationPair } from "pt-v5-tpda-liquidator/TpdaLiquidationPair.sol";
+import { TpdaLiquidationRouter } from "pt-v5-tpda-liquidator/TpdaLiquidationRouter.sol";
 import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
 
 import { SingleChainEnvironment } from "../environment/SingleChainEnvironment.sol";
