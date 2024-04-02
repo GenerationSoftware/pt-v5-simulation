@@ -95,7 +95,7 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
         closedDrawLog.finishDrawReward = closedDrawDetail.finishDrawReward;
         closedDrawLog.totalLiquidationAmountOutUsd = formatUsd(liquidatorAgent.totalAmountOutPerDraw(closedDrawId), config.poolUsdValueOverTime().get(block.timestamp));
         closedDrawLog.totalLiquidationAmountInUsd = formatUsd(liquidatorAgent.totalAmountInPerDraw(closedDrawId), config.wethUsdValueOverTime().get(block.timestamp));
-        closedDrawLog.reserveAmountContributedUsd = formatUsd(prizePool.getContributedBetween(env.drawManager().stakingVault(), closedDrawId + 1, closedDrawId + 1), config.wethUsdValueOverTime().get(block.timestamp));
+        closedDrawLog.reserveAmountContributedUsd = formatUsd(prizePool.getContributedBetween(env.drawManager().vaultBeneficiary(), closedDrawId + 1, closedDrawId + 1), config.wethUsdValueOverTime().get(block.timestamp));
 
         {
           for (uint8 t = 0; t < closedDrawLog.numberOfTiers; t++) {
