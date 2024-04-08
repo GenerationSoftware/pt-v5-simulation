@@ -37,8 +37,6 @@ struct LiquidatorConfig {
 }
 
 struct ClaimerConfig {
-  uint256 minimumFee;
-  uint256 maximumFee;
   uint256 timeToReachMaxFee;
   UD2x18 maxFeePortionOfPrize;
 }
@@ -113,8 +111,6 @@ contract Config is CommonBase {
     
     _liquidator.liquidationPairSearchDensity = vm.parseJsonUint(config, "$.liquidator.liquidation_pair_search_density").toUint64();    
 
-    _claimer.minimumFee = vm.parseJsonUint(config, "$.claimer.claimer_min_fee");
-    _claimer.maximumFee = vm.parseJsonUint(config, "$.claimer.claimer_max_fee");
     _claimer.timeToReachMaxFee = getClaimerTimeToReachMaxFee();
     _claimer.maxFeePortionOfPrize = getClaimerMaxFeePortionOfPrize();
 

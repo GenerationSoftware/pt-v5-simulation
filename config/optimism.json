@@ -4,7 +4,7 @@
         "time_step": "1800",
         "tvl_usd": "5000000",
         "verbosity": "1",
-        "duration_draws": "6",
+        "duration_draws": "15",
 
         "eth_price_usd_per_draw" : [
             "30"
@@ -20,9 +20,9 @@
         "draw_timeout": "30",
         "grand_prize_period_draws": "365",
         "number_of_tiers": "4",
-        "tier_shares": "200",
-        "canary_shares": "5",
-        "reserve_shares": "40",
+        "tier_shares": "100",
+        "canary_shares": "4",
+        "reserve_shares": "30",
         "tier_liquidity_utilization_rate": "500000000000000000"
     },
     
@@ -35,11 +35,6 @@
     
     "liquidator": {
         "liquidation_pair_search_density": "1"
-    },
-    
-    "claimer": {
-        "claimer_min_fee": "100",
-        "claimer_max_fee": "10000000"
     },
     
     "gas": {
