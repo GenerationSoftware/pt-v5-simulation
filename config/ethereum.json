@@ -1,0 +1,46 @@
+{
+    "simulation": {
+        "num_users": "5",
+        "time_step": "1800",
+        "tvl_usd": "20000000",
+        "verbosity": "1",
+        "duration_draws": "15",
+
+        "eth_price_usd_per_draw" : [
+            "30"
+        ],
+        
+        "apr_for_each_draw" : [
+            "30000000000000000"
+        ]
+    },
+    
+    "prize_pool": {
+        "draw_period_seconds": "604800",
+        "draw_timeout": "8",
+        "grand_prize_period_draws": "13",
+        "number_of_tiers": "4",
+        "tier_shares": "100",
+        "canary_shares": "4",
+        "reserve_shares": "30",
+        "tier_liquidity_utilization_rate": "500000000000000000"
+    },
+    
+    "draw_manager": {
+        "auction_duration": "43200",
+        "auction_target_time": "14400",
+        "auction_max_reward": "1000000000000000000",
+        "first_auction_target_reward_fraction": "250000000000000000"
+    },
+    
+    "liquidator": {
+        "liquidation_pair_search_density": "1"
+    },
+    
+    "gas": {
+        "start_draw_cost_in_usd":   "20000",
+        "award_draw_cost_in_usd":   "20000",
+        "claim_cost_in_usd":        "5000",
+        "liquidation_cost_in_usd":  "6000"
+    }
+}

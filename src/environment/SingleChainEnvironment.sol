@@ -132,6 +132,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
       drawManagerConfig.firstAuctionTargetRewardFraction,
       config.getFirstRngRelayAuctionTargetRewardFraction(),
       drawManagerConfig.auctionMaxReward,
+      2,
       address(poolPrizeVault)
     );
 
