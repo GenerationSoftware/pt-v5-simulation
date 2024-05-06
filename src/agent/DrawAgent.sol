@@ -84,9 +84,12 @@ contract DrawAgent is StdCheats, Utils {
       _drawDetails[drawId].numberOfTiers = prizePool.numberOfTiers();
       _drawDetails[drawId].finishDrawReward = drawManager.finishDrawReward();
       // console2.log("Awarding draw ", drawId);
-      drawManager.finishDraw(address(this));
-      drawCount++;
-      return true;
+      try drawManager.finishDraw(address(this)) returns (uint24 drawId) {
+        drawCount++;
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     return false;
