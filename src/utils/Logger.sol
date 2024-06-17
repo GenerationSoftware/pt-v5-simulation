@@ -14,6 +14,8 @@ struct DrawLog {
     uint256 apr;
     string totalLiquidationAmountOutUsd;
     string totalLiquidationAmountInUsd;
+    string totalContributed;
+    string hookContributed;
     uint256[11] tierLiquidityRemaining;
     uint256[11] tierPrizeSizes;
     string[11] tierPrizeSizesUsd;
@@ -27,20 +29,11 @@ contract Logger is CommonBase {
 
     constructor(string memory _outputFilepath) {
         outputFilepath = _outputFilepath;
-        vm.writeLine(outputFilepath, "Draw id, Number of Tiers, apr, Total Yield Amount Out (usd), Total Liquidation Amount In (usd), Remaining Reserve Re-contributed (usd), Start Draw Reward, Finish Draw Reward, tier0LiquidityRemaining, tier1LiquidityRemaining, tier2LiquidityRemaining, tier3LiquidityRemaining, tier4LiquidityRemaining, tier5LiquidityRemaining, tier6LiquidityRemaining, tier7LiquidityRemaining, tier8LiquidityRemaining, tier9LiquidityRemaining, tier10LiquidityRemaining, tier0PrizeSizes, tier1PrizeSizes, tier2PrizeSizes, tier3PrizeSizes, tier4PrizeSizes, tier5PrizeSizes, tier6PrizeSizes, tier7PrizeSizes, tier8PrizeSizes, tier9PrizeSizes, tier10PrizeSizes, tier0PrizeSizesUsd, tier1PrizeSizesUsd, tier2PrizeSizesUsd, tier3PrizeSizesUsd, tier4PrizeSizesUsd, tier5PrizeSizesUsd, tier6PrizeSizesUsd, tier7PrizeSizesUsd, tier8PrizeSizesUsd, tier9PrizeSizesUsd, tier10PrizeSizesUsd, tier0ClaimedPrizes, tier1ClaimedPrizes, tier2ClaimedPrizes, tier3ClaimedPrizes, tier4ClaimedPrizes, tier5ClaimedPrizes, tier6ClaimedPrizes, tier7ClaimedPrizes, tier8ClaimedPrizes, tier9ClaimedPrizes, tier10ClaimedPrizes, tier0ComputedPrizes, tier1ComputedPrizes, tier2ComputedPrizes, tier3ComputedPrizes, tier4ComputedPrizes, tier5ComputedPrizes, tier6ComputedPrizes, tier7ComputedPrizes, tier8ComputedPrizes, tier9ComputedPrizes, tier10ComputedPrizes");
+        vm.writeLine(outputFilepath, "Draw id, Number of Tiers, apr, Total Yield Amount Out (usd), Total Liquidation Amount In (usd), Total Contrib (usd), Hook contrib (usd), POOL Vault Contrib. (usd), Start Draw Reward, Finish Draw Reward, tier0LiquidityRemaining, tier1LiquidityRemaining, tier2LiquidityRemaining, tier3LiquidityRemaining, tier4LiquidityRemaining, tier5LiquidityRemaining, tier6LiquidityRemaining, tier7LiquidityRemaining, tier8LiquidityRemaining, tier9LiquidityRemaining, tier10LiquidityRemaining, tier0PrizeSizes, tier1PrizeSizes, tier2PrizeSizes, tier3PrizeSizes, tier4PrizeSizes, tier5PrizeSizes, tier6PrizeSizes, tier7PrizeSizes, tier8PrizeSizes, tier9PrizeSizes, tier10PrizeSizes, tier0PrizeSizesUsd, tier1PrizeSizesUsd, tier2PrizeSizesUsd, tier3PrizeSizesUsd, tier4PrizeSizesUsd, tier5PrizeSizesUsd, tier6PrizeSizesUsd, tier7PrizeSizesUsd, tier8PrizeSizesUsd, tier9PrizeSizesUsd, tier10PrizeSizesUsd, tier0ClaimedPrizes, tier1ClaimedPrizes, tier2ClaimedPrizes, tier3ClaimedPrizes, tier4ClaimedPrizes, tier5ClaimedPrizes, tier6ClaimedPrizes, tier7ClaimedPrizes, tier8ClaimedPrizes, tier9ClaimedPrizes, tier10ClaimedPrizes, tier0ComputedPrizes, tier1ComputedPrizes, tier2ComputedPrizes, tier3ComputedPrizes, tier4ComputedPrizes, tier5ComputedPrizes, tier6ComputedPrizes, tier7ComputedPrizes, tier8ComputedPrizes, tier9ComputedPrizes, tier10ComputedPrizes");
     }
 
     function log(DrawLog memory _log) public {
-        string memory result = string.concat(
-            vm.toString(_log.drawId), ",",
-            vm.toString(_log.numberOfTiers), ",",
-            vm.toString(_log.apr), ",",
-            _log.totalLiquidationAmountOutUsd, ",",
-            _log.totalLiquidationAmountInUsd, ",",
-            _log.reserveAmountContributedUsd, ",",
-            vm.toString(_log.startDrawReward), ",",
-            vm.toString(_log.finishDrawReward)
-        );
+        string memory result = logHeader(_log);
         for (uint8 i = 0; i < 11; i++) {
             result = string.concat(result, ",", vm.toString(_log.tierLiquidityRemaining[i]));
         }
@@ -58,6 +51,27 @@ contract Logger is CommonBase {
         }
 
         vm.writeLine(outputFilepath, result);
+    }
+
+    function logHeader(DrawLog memory _log) public returns (string memory) {
+        return string.concat(
+            vm.toString(_log.drawId), ",",
+            vm.toString(_log.numberOfTiers), ",",
+            vm.toString(_log.apr), ",",
+            _log.totalLiquidationAmountOutUsd, ",",
+            _log.totalLiquidationAmountInUsd, ",",
+            logContributed(_log),
+            vm.toString(_log.startDrawReward), ",",
+            vm.toString(_log.finishDrawReward)
+        );
+    }
+
+    function logContributed(DrawLog memory _log) public returns (string memory) {
+        return string.concat(
+            _log.totalContributed, ", ",
+            _log.hookContributed, ", ",
+            _log.reserveAmountContributedUsd, ","
+        );
     }
 
     function close() public {
