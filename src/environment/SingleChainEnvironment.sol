@@ -23,8 +23,8 @@ import { Claimer } from "pt-v5-claimer/Claimer.sol";
 import { ILiquidationSource } from "pt-v5-liquidator-interfaces/ILiquidationSource.sol";
 import { ILiquidationPair } from "pt-v5-liquidator-interfaces/ILiquidationPair.sol";
 
-// import { LiquidationPairFactory } from "pt-v5-cgda-liquidator/LiquidationPairFactory.sol";
-// import { LiquidationRouter } from "pt-v5-cgda-liquidator/LiquidationRouter.sol";
+import { GpBoostHook } from "../external/GpBoostHook.sol";
+
 import { TpdaLiquidationPairFactory } from "pt-v5-tpda-liquidator/TpdaLiquidationPairFactory.sol";
 import { TpdaLiquidationRouter } from "pt-v5-tpda-liquidator/TpdaLiquidationRouter.sol";
 
@@ -60,6 +60,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
   TpdaLiquidationRouter public router;
   StakingVault public poolVault;
   PrizeVault public poolPrizeVault;
+  GpBoostHook public gpBoostHook;
 
   address[] public users;
 
@@ -109,6 +110,8 @@ contract SingleChainEnvironment is Utils, StdCheats {
       claimerConfig.timeToReachMaxFee,
       claimerConfig.maxFeePortionOfPrize
     );
+
+    gpBoostHook = new GpBoostHook(prizePool, address(claimer));
 
     poolVault = new StakingVault("POOL Staking Vault", "sPOOL", IERC20(address(poolToken)));
     poolPrizeVault = new PrizeVault(
@@ -162,13 +165,16 @@ contract SingleChainEnvironment is Utils, StdCheats {
       )
     );
 
+    prizeToken.mint(address(this), simulationConfig.gpBoost);
+    prizeToken.approve(address(gpBoostHook), simulationConfig.gpBoost);
+    gpBoostHook.contributePrizeTokens(simulationConfig.gpBoost);
 
-    initializeCgdaLiquidator(liquidatorConfig);
+    initializeLiquidator(liquidatorConfig);
     // console2.log("config.simulation().totalValueLocked: ", config.simulation().totalValueLocked);
     addUsers(config.simulation().numUsers, config.simulation().totalValueLocked / config.simulation().numUsers);
   }
 
-  function initializeCgdaLiquidator(LiquidatorConfig memory _liquidatorConfig) public virtual {
+  function initializeLiquidator(LiquidatorConfig memory _liquidatorConfig) public virtual {
     SD59x18 wethUsdValue = config.wethUsdValueOverTime().get(block.timestamp);
     SD59x18 poolUsdValue = config.poolUsdValueOverTime().get(block.timestamp);
 
@@ -177,7 +183,7 @@ contract SingleChainEnvironment is Utils, StdCheats {
     TpdaLiquidationRouter fixedRouter = new TpdaLiquidationRouter(pairFactory);
     vm.label(address(fixedRouter), "TpdaLiquidationRouter");
     // console2.log(
-    //   "initializeCgdaLiquidator _liquidatorConfig.exchangeRatePrizeTokenToUnderlying",
+    //   "initializeLiquidator _liquidatorConfig.exchangeRatePrizeTokenToUnderlying",
     //   _liquidatorConfig.exchangeRatePrizeTokenToUnderlying.unwrap()
     // );
 
@@ -237,6 +243,10 @@ contract SingleChainEnvironment is Utils, StdCheats {
       poolPrizeVault.withdraw(poolPrizeVault.balanceOf(user), user, user);
       vm.stopPrank();
     }
+  }
+
+  function allUsers() public view returns (address[] memory) {
+    return users;
   }
 
   function userCount() public view returns (uint256) {
