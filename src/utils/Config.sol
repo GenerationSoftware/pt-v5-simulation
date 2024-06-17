@@ -17,6 +17,9 @@ struct SimulationConfig {
   uint256 timeStep;
   uint256 totalValueLocked;
   uint256 verbosity;
+  uint256 gpBoost;
+  uint256 gpBoostPerDraw;
+  uint256 gpBoostPerDrawLastDraw;
 }
 
 // Contracts configs
@@ -93,6 +96,9 @@ contract Config is CommonBase {
     _simulation.totalValueLocked = uint(convert(convert(int(vm.parseJsonUint(config, "$.simulation.tvl_usd"))).mul(convert(int(10**USD_DECIMALS))).div(poolUsdValueOverTime.get(block.timestamp))));
     _simulation.verbosity = vm.parseJsonUint(config, "$.simulation.verbosity");
     _simulation.durationDraws = vm.parseJsonUint(config, "$.simulation.duration_draws");
+    _simulation.gpBoost = vm.parseJsonUint(config, "$.simulation.gp_boost");
+    _simulation.gpBoostPerDraw = vm.parseJsonUint(config, "$.simulation.gp_boost_per_draw");
+    _simulation.gpBoostPerDrawLastDraw = vm.parseJsonUint(config, "$.simulation.gp_boost_per_draw_last_draw");
     
     _prizePool.drawPeriodSeconds = vm.parseJsonUint(config, "$.prize_pool.draw_period_seconds").toUint32();
     _prizePool.firstDrawOpensAt = uint48(block.timestamp + _prizePool.drawPeriodSeconds);

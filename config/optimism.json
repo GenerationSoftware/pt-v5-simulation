@@ -2,23 +2,26 @@
     "simulation": {
         "num_users": "2",
         "time_step": "1800",
-        "tvl_usd": "5000000",
+        "tvl_usd": "4000000",
         "verbosity": "1",
-        "duration_draws": "15",
+        "duration_draws": "60",
+        "gp_boost": "10000000000000100000",
+        "gp_boost_per_draw": "666666666666000000",
+        "gp_boost_per_draw_last_draw": "30",
 
         "eth_price_usd_per_draw" : [
             "3300"
         ],
         
         "apr_for_each_draw" : [
-            "30000000000000000"
+            "100000000000000000"
         ]
     },
     
     "prize_pool": {
         "draw_period_seconds": "86400",
         "draw_timeout": "30",
-        "grand_prize_period_draws": "365",
+        "grand_prize_period_draws": "90",
         "number_of_tiers": "4",
         "tier_shares": "100",
         "canary_shares": "4",

@@ -5,6 +5,7 @@
         "tvl_usd": "10000000",
         "verbosity": "1",
         "duration_draws": "24",
+        "gp_boost": "0",
 
         "eth_price_usd_per_draw" : [
             "3400"
