@@ -4,9 +4,9 @@
         "time_step": "1800",
         "tvl_usd": "4000000",
         "verbosity": "1",
-        "duration_draws": "60",
-        "gp_boost": "10000000000000100000",
-        "gp_boost_per_draw": "666666666666000000",
+        "duration_draws": "4",
+        "gp_boost_first_draw": "0",
+        "gp_boost_per_draw": "0",
         "gp_boost_per_draw_last_draw": "30",
 
         "eth_price_usd_per_draw" : [

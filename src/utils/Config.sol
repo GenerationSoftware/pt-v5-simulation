@@ -96,7 +96,7 @@ contract Config is CommonBase {
     _simulation.totalValueLocked = uint(convert(convert(int(vm.parseJsonUint(config, "$.simulation.tvl_usd"))).mul(convert(int(10**USD_DECIMALS))).div(poolUsdValueOverTime.get(block.timestamp))));
     _simulation.verbosity = vm.parseJsonUint(config, "$.simulation.verbosity");
     _simulation.durationDraws = vm.parseJsonUint(config, "$.simulation.duration_draws");
-    _simulation.gpBoost = vm.parseJsonUint(config, "$.simulation.gp_boost");
+    _simulation.gpBoost = vm.parseJsonUint(config, "$.simulation.gp_boost_first_draw");
     _simulation.gpBoostPerDraw = vm.parseJsonUint(config, "$.simulation.gp_boost_per_draw");
     _simulation.gpBoostPerDrawLastDraw = vm.parseJsonUint(config, "$.simulation.gp_boost_per_draw_last_draw");
     
