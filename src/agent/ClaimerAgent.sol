@@ -7,6 +7,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { Claimer } from "pt-v5-claimer/Claimer.sol";
 import { PrizePool } from "pt-v5-prize-pool/PrizePool.sol";
 import { PrizeVault } from "pt-v5-vault/PrizeVault.sol";
+import { IClaimable } from "pt-v5-claimable-interface/interfaces/IClaimable.sol";
 
 import { SingleChainEnvironment } from "../environment/SingleChainEnvironment.sol";
 import { Config } from "../utils/Config.sol";
@@ -20,7 +21,8 @@ contract ClaimerAgent is Utils {
 
   Claimer public claimer;
   PrizePool public prizePool;
-  PrizeVault public vault;
+  address public vault;
+  address[] users;
 
   struct Prize {
     uint8 tier;
@@ -47,13 +49,14 @@ contract ClaimerAgent is Utils {
 
   uint logVerbosity;
 
-  constructor(SingleChainEnvironment _env, PrizeVault _vault) {
+  constructor(SingleChainEnvironment _env, address _vault, address[] memory _users) {
     env = _env;
     logVerbosity = _env.config().simulation().verbosity;
 
     claimer = env.claimer();
     prizePool = env.prizePool();
     vault = _vault;
+    users = _users;
 
     claimerCsvFile = string.concat(vm.projectRoot(), "/data/claimerOut-", vm.toString(address(_vault)), ".csv");
     initOutputFileCsv(claimerCsvFile, claimerCsvColumns);
@@ -121,37 +124,44 @@ contract ClaimerAgent is Utils {
         }
       }
 
-      uint32 maxPrizesPerLiquidity = uint32(prizePool.getTierRemainingLiquidity(tier) / prizeSize);
+      {
+        uint32 maxPrizesPerLiquidity = uint32(prizePool.getTierRemainingLiquidity(tier) / prizeSize);
 
-      if (targetClaimCount > maxPrizesPerLiquidity) {
-        drawTierInsufficientLiquidityPrizeCounts[drawId][tier] =
-          targetClaimCount -
-          maxPrizesPerLiquidity;
-        console2.log("-------- INSUFFICIENT LIQUIDITY: Draw id %s, tier %s", drawId, tier);
-        console2.log("-------- \tprize count %s, possible count %s, target count %s ", targetClaimCount, maxPrizesPerLiquidity, prizePool.getTierPrizeCount(tier));
-        console2.log("-------- \tremaining liquidity", prizePool.getTierRemainingLiquidity(tier));
-        console2.log("-------- \tprize size: ", prizeSize);
-        targetClaimCount = maxPrizesPerLiquidity;
+        if (targetClaimCount > maxPrizesPerLiquidity) {
+          drawTierInsufficientLiquidityPrizeCounts[drawId][tier] =
+            targetClaimCount -
+            maxPrizesPerLiquidity;
+          console2.log("-------- INSUFFICIENT LIQUIDITY: Draw id %s, tier %s", drawId, tier);
+          console2.log("-------- \tprize count %s, possible count %s, target count %s ", targetClaimCount, maxPrizesPerLiquidity, prizePool.getTierPrizeCount(tier));
+          console2.log("-------- \tremaining liquidity", prizePool.getTierRemainingLiquidity(tier));
+          console2.log("-------- \tprize size: ", prizeSize);
+          targetClaimCount = maxPrizesPerLiquidity;
+        }
       }
 
       if (targetClaimCount > 0) {
-        // count winners
-        uint256 winnersLength = countWinners(nextPrizeIndex, targetClaimCount);
+        address[] memory winners;
+        uint32[][] memory prizeIndices;
 
-        // build result arrays
-        (address[] memory winners, uint32[][] memory prizeIndices) = populateArrays(
-          nextPrizeIndex,
-          targetClaimCount,
-          winnersLength,
-          countPrizeIndicesPerWinner(nextPrizeIndex, targetClaimCount, winnersLength)
-        );
+        {
+          // count winners
+          uint256 winnersLength = countWinners(nextPrizeIndex, targetClaimCount);
+
+          // build result arrays
+          (winners, prizeIndices) = populateArrays(
+            nextPrizeIndex,
+            targetClaimCount,
+            winnersLength,
+            countPrizeIndicesPerWinner(nextPrizeIndex, targetClaimCount, winnersLength)
+          );
+        }
 
         if (isLogging(2)) {
           console2.log("claiming %s prizes for drawId %s tier %s", tierPrizes, drawId, tier); 
         }
 
         uint feesForBatch = claimer.claimPrizes(
-          vault,
+          IClaimable(vault),
           tier,
           winners,
           prizeIndices,
@@ -289,18 +299,21 @@ contract ClaimerAgent is Utils {
 
   function computePrizes() public {
     uint24 drawId = prizePool.getLastAwardedDrawId();
-    require(drawId >= computedDrawId, "invalid draw");
+    require(drawId > computedDrawId, "invalid draw");
     uint8 numTiers = prizePool.numberOfTiers();
     drawNumberOfTiers[drawId] = numTiers;
-    for (uint8 t = 0; t < numTiers; t++) {
+    for (uint8 tier = 0; tier < numTiers; tier++) {
       // make sure canary tier is last
-      for (uint i = 0; i < env.userCount(); i++) {
-        address user = env.users(i);
-        for (uint32 p = 0; p < prizePool.getTierPrizeCount(t); p++) {
-          if (prizePool.isWinner(address(vault), user, t, p)) {
-            drawPrizes[drawId].push(Prize(t, user, p));
+      for (uint i = 0; i < users.length; i++) {
+        address user = users[i];
+        for (uint32 p = 0; p < prizePool.getTierPrizeCount(tier); p++) {
+          if (prizePool.isWinner(vault, user, tier, p)) {
+            if (tier == 0 && user == address(env.gpBoostHook())) {
+              console2.log("GP BOOST WON GRAND PRIZE");
+            }
+            drawPrizes[drawId].push(Prize(tier, user, p));
             totalPrizesComputed++;
-            drawTierComputedPrizeCounts[drawId][t]++;
+            drawTierComputedPrizeCounts[drawId][tier]++;
           }
         }
       }
@@ -342,4 +355,5 @@ contract ClaimerAgent is Utils {
       console2.log("\t\t\tReserve", prizePool.reserve() / 1e18);
     }
   }
+
 }

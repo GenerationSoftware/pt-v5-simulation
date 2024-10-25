@@ -45,6 +45,7 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
   Config public config;
   ClaimerAgent public vaultClaimerAgent;
   ClaimerAgent public poolPrizeVaultClaimerAgent;
+  ClaimerAgent public boostClaimerAgent;
   DrawAgent public drawAgent;
   LiquidatorAgent public liquidatorAgent;
 
@@ -62,8 +63,11 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
     initOutputFileCsv(simulatorCsvFile, simulatorCsvColumns);
 
     env = new SingleChainEnvironment(config);
-    vaultClaimerAgent = new ClaimerAgent(env, env.vault());
-    poolPrizeVaultClaimerAgent = new ClaimerAgent(env, env.poolPrizeVault());
+    vaultClaimerAgent = new ClaimerAgent(env, address(env.vault()), env.allUsers());
+    poolPrizeVaultClaimerAgent = new ClaimerAgent(env, address(env.poolPrizeVault()), env.allUsers());
+    address[] memory boostUsers = new address[](1);
+    boostUsers[0] = address(env.gpBoostHook());
+    boostClaimerAgent = new ClaimerAgent(env, address(env.gpBoostHook()), boostUsers);
     drawAgent = new DrawAgent(env);
     liquidatorAgent = new LiquidatorAgent(env);
   }
@@ -77,45 +81,34 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
       vm.roll(block.number + 2);
 
       // Let agents do their thing
-      uint yield = env.mintYield();
-      uint apr = env.updateApr();
-      liquidatorAgent.check(config.wethUsdValueOverTime().get(block.timestamp), config.poolUsdValueOverTime().get(block.timestamp));
+      env.mintYield();
 
-      uint24 openDrawId = env.prizePool().getOpenDrawId();
       uint24 finalizedDrawId = env.prizePool().getLastAwardedDrawId();
       DrawLog memory finalizedDrawLog = drawLogs[finalizedDrawId];
-      finalizedDrawLog.apr = apr;
+      finalizedDrawLog.apr = env.updateApr();
+      liquidatorAgent.check(config.wethUsdValueOverTime().get(block.timestamp), config.poolUsdValueOverTime().get(block.timestamp));
+
       if (drawAgent.check()) {
         uint24 closedDrawId = env.prizePool().getLastAwardedDrawId();
-        DrawLog memory closedDrawLog = drawLogs[closedDrawId];
-        DrawDetail memory closedDrawDetail = drawAgent.drawDetails(closedDrawId);
-        closedDrawLog.drawId = closedDrawId;
-        closedDrawLog.numberOfTiers = closedDrawDetail.numberOfTiers;
-        closedDrawLog.startDrawReward = closedDrawDetail.startDrawReward;
-        closedDrawLog.finishDrawReward = closedDrawDetail.finishDrawReward;
-        closedDrawLog.totalLiquidationAmountOutUsd = formatUsd(liquidatorAgent.totalAmountOutPerDraw(closedDrawId), config.poolUsdValueOverTime().get(block.timestamp));
-        closedDrawLog.totalLiquidationAmountInUsd = formatUsd(liquidatorAgent.totalAmountInPerDraw(closedDrawId), config.wethUsdValueOverTime().get(block.timestamp));
-        closedDrawLog.reserveAmountContributedUsd = formatUsd(prizePool.getContributedBetween(env.drawManager().vaultBeneficiary(), closedDrawId + 1, closedDrawId + 1), config.wethUsdValueOverTime().get(block.timestamp));
+        drawLogs[closedDrawId] = updateDrawLog(drawLogs[closedDrawId], closedDrawId);
 
-        {
-          for (uint8 t = 0; t < closedDrawLog.numberOfTiers; t++) {
-            closedDrawLog.tierLiquidityRemaining[t] = prizePool.getTierRemainingLiquidity(t);
-            closedDrawLog.tierPrizeSizes[t] = prizePool.getTierPrizeSize(t);
-            closedDrawLog.tierPrizeSizesUsd[t] = formatUsd(prizePool.getTierPrizeSize(t), config.wethUsdValueOverTime().get(block.timestamp));
-          }
-
-          if (finalizedDrawId > 0) {
-            for (uint8 t = 0; t < finalizedDrawLog.numberOfTiers; t++) {
-              finalizedDrawLog.claimedPrizes[t] = vaultClaimerAgent.drawTierClaimedPrizeCounts(finalizedDrawId, t) + poolPrizeVaultClaimerAgent.drawTierClaimedPrizeCounts(finalizedDrawId, t);
-              finalizedDrawLog.computedPrizes[t] = vaultClaimerAgent.drawTierComputedPrizeCounts(finalizedDrawId, t) + poolPrizeVaultClaimerAgent.drawTierComputedPrizeCounts(finalizedDrawId, t);
-            }  
-          }
+        if (config.simulation().gpBoostPerDraw > 0 && config.simulation().gpBoostPerDrawLastDraw > closedDrawId) {
+          env.prizeToken().mint(address(this), config.simulation().gpBoostPerDraw);
+          env.prizeToken().approve(address(env.gpBoostHook()), config.simulation().gpBoostPerDraw);
+          env.gpBoostHook().contributePrizeTokens(config.simulation().gpBoostPerDraw);
         }
 
-        drawLogs[closedDrawId] = closedDrawLog;
+        if (finalizedDrawId > 0) {
+          for (uint8 t = 0; t < finalizedDrawLog.numberOfTiers; t++) {
+            finalizedDrawLog.claimedPrizes[t] = vaultClaimerAgent.drawTierClaimedPrizeCounts(finalizedDrawId, t) + poolPrizeVaultClaimerAgent.drawTierClaimedPrizeCounts(finalizedDrawId, t);
+            finalizedDrawLog.computedPrizes[t] = vaultClaimerAgent.drawTierComputedPrizeCounts(finalizedDrawId, t) + poolPrizeVaultClaimerAgent.drawTierComputedPrizeCounts(finalizedDrawId, t);
+          }  
+        }
+
         drawLogs[finalizedDrawId] = finalizedDrawLog;
       }
       vaultClaimerAgent.check();
+      boostClaimerAgent.check();
       poolPrizeVaultClaimerAgent.check();
     }
 
@@ -131,6 +124,36 @@ contract SingleChainTest is CommonBase, StdCheats, Test, Utils {
     printFinalPrizes();
     printLiquidity();
   }
+
+  function updateDrawLog(DrawLog memory closedDrawLog, uint24 closedDrawId) internal returns (DrawLog memory) {
+    PrizePool prizePool = env.prizePool();
+    DrawDetail memory closedDrawDetail = drawAgent.drawDetails(closedDrawId);
+    SD59x18 wethValue = config.wethUsdValueOverTime().get(block.timestamp);
+    closedDrawLog.drawId = closedDrawId;
+    closedDrawLog.numberOfTiers = closedDrawDetail.numberOfTiers;
+    closedDrawLog.startDrawReward = closedDrawDetail.startDrawReward;
+    closedDrawLog.finishDrawReward = closedDrawDetail.finishDrawReward;
+    closedDrawLog.totalLiquidationAmountOutUsd = formatUsd(liquidatorAgent.totalAmountOutPerDraw(closedDrawId), config.poolUsdValueOverTime().get(block.timestamp));
+    closedDrawLog.totalLiquidationAmountInUsd = formatUsd(liquidatorAgent.totalAmountInPerDraw(closedDrawId), wethValue);
+    closedDrawLog.reserveAmountContributedUsd = formatUsd(prizePool.getContributedBetween(env.drawManager().vaultBeneficiary(), closedDrawId, closedDrawId), wethValue);
+    closedDrawLog.hookContributed = formatUsd(prizePool.getContributedBetween(address(env.gpBoostHook()), closedDrawId, closedDrawId), wethValue);
+    closedDrawLog.totalContributed = formatUsd(prizePool.getTotalContributedBetween(closedDrawId, closedDrawId), wethValue);
+    for (uint8 t = 0; t < closedDrawLog.numberOfTiers; t++) {
+      closedDrawLog.tierLiquidityRemaining[t] = prizePool.getTierRemainingLiquidity(t);
+      closedDrawLog.tierPrizeSizes[t] = prizePool.getTierPrizeSize(t);
+      closedDrawLog.tierPrizeSizesUsd[t] = formatUsd(prizePool.getTierPrizeSize(t), wethValue);
+    }
+    return closedDrawLog;
+  }
+
+  // function updateContributed(DrawLog memory closedDrawLog, uint24 closedDrawId) internal returns (DrawLog memory) {
+  //   PrizePool prizePool = env.prizePool();
+  //   SD59x18 wethValue = config.wethUsdValueOverTime().get(block.timestamp);
+  //   closedDrawLog.reserveAmountContributedUsd = formatUsd(prizePool.getContributedBetween(env.drawManager().vaultBeneficiary(), closedDrawId, closedDrawId), wethValue);
+  //   closedDrawLog.hookContributed = formatUsd(prizePool.getContributedBetween(address(env.gpBoostHook()), closedDrawId, closedDrawId), wethValue);
+  //   closedDrawLog.totalContributed = formatUsd(prizePool.getTotalContributedBetween(closedDrawId, closedDrawId), wethValue);
+  //   return closedDrawLog;
+  // }
 
   function dumpLogs() public {
     for (uint24 drawId = 1; drawId <= env.prizePool().getLastAwardedDrawId(); drawId++) {

@@ -76,7 +76,7 @@ contract ClaimerAgentTest is Test {
     mockNoPrizes(user1, numTiers);
     mockNoPrizes(user2, numTiers);
 
-    agent = new ClaimerAgent(env, env.vault());
+    agent = new ClaimerAgent(env, address(env.vault()), env.allUsers());
   }
 
   function testComputePrizes_noPrizes() public {
@@ -250,7 +250,8 @@ contract ClaimerAgentTest is Test {
     );
 
     agent.computePrizes();
-
+    uint256 actualClaimCount;
+    address vault;
     address[] memory winners;
     uint32[][] memory winnerPrizeIndices;
 

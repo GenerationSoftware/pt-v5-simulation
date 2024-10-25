@@ -1,10 +1,13 @@
 {
     "simulation": {
         "num_users": "10",
-        "time_step": "1800",
+        "time_step": "7200",
         "tvl_usd": "10000000",
         "verbosity": "1",
-        "duration_draws": "24",
+        "duration_draws": "4",
+        "gp_boost_first_draw": "0",
+        "gp_boost_per_draw": "0",
+        "gp_boost_per_draw_last_draw": "0",
 
         "eth_price_usd_per_draw" : [
             "3400"
@@ -38,9 +41,9 @@
     },
     
     "gas": {
-        "start_draw_cost_in_usd":   "217600",
-        "award_draw_cost_in_usd":   "95200",
-        "claim_cost_in_usd":        "76000",
-        "liquidation_cost_in_usd":  "150000"
+        "start_draw_cost_in_usd":   "20000",
+        "award_draw_cost_in_usd":   "10000",
+        "claim_cost_in_usd":        "150",
+        "liquidation_cost_in_usd":  "1000"
     }
 }
